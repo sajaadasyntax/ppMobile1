@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "PP App",
+    "slug": "pp-app",
+    "version": "1.2.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/react-logo.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "scheme": "pp-app",
+    "splash": {
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.sajaadammar.ppapp2025",
+      "versionCode": 2
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d18a5316-92db-4e7d-9fed-4adf0df31dfc"
+      }
+    }
+  }
+}
