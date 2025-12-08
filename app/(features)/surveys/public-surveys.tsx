@@ -4,9 +4,9 @@ import { RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { apiService } from "../services/api";
-import { AuthContext } from "../context/AuthContext";
-import { Survey } from "../types/survey";
+import { apiService } from "../../../services/api";
+import { AuthContext } from "../../../context/AuthContext";
+import { Survey } from "../../../types/survey";
 
 export default function PublicSurveys() {
   const [surveys, setSurveys] = useState<Survey[]>([]);

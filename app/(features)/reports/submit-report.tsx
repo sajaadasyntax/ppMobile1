@@ -10,15 +10,15 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Colors from '../constants/Colors';
-import Font from '../constants/Font';
-import FontSize from '../constants/FontSize';
-import Spacing from '../constants/Spacing';
+import Colors from '../../../constants/Colors';
+import Font from '../../../constants/Font';
+import FontSize from '../../../constants/FontSize';
+import Spacing from '../../../constants/Spacing';
 import { Stack, useRouter } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import { Ionicons } from '@expo/vector-icons';
-import { apiService } from '../services/api';
-import { AuthContext } from '../context/AuthContext';
+import { apiService } from '../../../services/api';
+import { AuthContext } from '../../../context/AuthContext';
 
 export default function SubmitReportScreen() {
   const [title, setTitle] = useState('');

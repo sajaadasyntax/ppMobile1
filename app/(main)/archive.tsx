@@ -12,9 +12,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { apiService, SERVER_BASE_URL } from "../services/api";
-import { AuthContext } from "../context/AuthContext";
-import { getUserScopeDescription } from "../utils/hierarchyUtils";
+import { apiService, SERVER_BASE_URL } from "../../services/api";
+import { AuthContext } from "../../context/AuthContext";
+import { getUserScopeDescription } from "../../utils/hierarchyUtils";
 
 interface ArchiveDocument {
   id: string;

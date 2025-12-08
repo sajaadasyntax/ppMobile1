@@ -2,16 +2,16 @@ import { View, Text, ScrollView, StyleSheet, Image, ActivityIndicator, RefreshCo
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useState, useContext } from "react";
-import { apiService } from "../services/api";
+import { apiService } from "../../../services/api";
 import { useRouter } from "expo-router";
-import { AuthContext } from "../context/AuthContext";
-import { getUserScopeDescription } from "../utils/hierarchyUtils";
+import { AuthContext } from "../../../context/AuthContext";
+import { getUserScopeDescription } from "../../../utils/hierarchyUtils";
 
 // Fallback images for when the server image is not available
 const fallbackImages = [
-  require("../assets/images/news1.png"),
-  require("../assets/images/news2.png"),
-  require("../assets/images/news3.png"),
+  require("../../../assets/images/news1.png"),
+  require("../../../assets/images/news2.png"),
+  require("../../../assets/images/news3.png"),
 ];
 
 // Define the Bulletin type

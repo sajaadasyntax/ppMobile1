@@ -1,12 +1,12 @@
 import { View, Text, TouchableOpacity, ScrollView, Dimensions, SafeAreaView, ActivityIndicator } from "react-native";
 import { useContext, useEffect, useState } from "react";
-import { AuthContext } from "../context/AuthContext";
+import { AuthContext } from "../../context/AuthContext";
 import { useRouter } from "expo-router";
-import Spacing from "../constants/Spacing";
-import Font from "../constants/Font";
-import FontSize from "../constants/FontSize";
-import { apiService } from "../services/api";
-import { getUserScopeDescription } from "../utils/hierarchyUtils";
+import Spacing from "../../constants/Spacing";
+import Font from "../../constants/Font";
+import FontSize from "../../constants/FontSize";
+import { apiService } from "../../services/api";
+import { getUserScopeDescription } from "../../utils/hierarchyUtils";
 import { Ionicons } from "@expo/vector-icons";
 
 const { height } = Dimensions.get("window");

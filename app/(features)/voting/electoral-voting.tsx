@@ -3,9 +3,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useState, useEffect, useContext } from "react";
-import { apiService } from "../services/api";
-import { AuthContext } from "../context/AuthContext";
-import { getUserScopeDescription } from "../utils/hierarchyUtils";
+import { apiService } from "../../../services/api";
+import { AuthContext } from "../../../context/AuthContext";
+import { getUserScopeDescription } from "../../../utils/hierarchyUtils";
 
 const fallbackImages = [
   require("../assets/images/news1.png"),

@@ -3,9 +3,9 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { apiService } from "../services/api";
-import { AuthContext } from "../context/AuthContext";
-import { Survey } from "../types/survey";
+import { apiService } from "../../../services/api";
+import { AuthContext } from "../../../context/AuthContext";
+import { Survey } from "../../../types/survey";
 
 export default function MemberSurveys() {
   const [surveys, setSurveys] = useState<Survey[]>([]);

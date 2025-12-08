@@ -1,14 +1,14 @@
 import { useState, useContext } from "react";
 import { View, Text, TextInput, Button, Alert, TouchableOpacity, SafeAreaView, ActivityIndicator } from "react-native";
-import { AuthContext } from "../context/AuthContext"; // Path to your AuthContext
-import { apiService } from "../services/api";
+import { AuthContext } from "../../context/AuthContext"; // Path to your AuthContext
+import { apiService } from "../../services/api";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import Spacing from "../constants/Spacing";
-import FontSize from "../constants/FontSize";
-import Colors from "../constants/Colors";
-import Font from "../constants/Font";
-import AppTextInput from "../components/AppTextInput";
+import Spacing from "../../constants/Spacing";
+import FontSize from "../../constants/FontSize";
+import Colors from "../../constants/Colors";
+import Font from "../../constants/Font";
+import AppTextInput from "../../components/AppTextInput";
 
 const Login: React.FC = () => {
 

@@ -3,7 +3,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useState, useEffect } from "react";
-import { apiService } from "../services/api";
+import { apiService } from "../../../services/api";
 
 // Fallback images for when the server image is not available
 const fallbackImages = [

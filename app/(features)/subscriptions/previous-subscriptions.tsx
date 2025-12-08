@@ -3,9 +3,9 @@ import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl, 
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { apiService } from "../services/api";
-import { AuthContext } from "../context/AuthContext";
-import { getUserScopeDescription } from "../utils/hierarchyUtils";
+import { apiService } from "../../../services/api";
+import { AuthContext } from "../../../context/AuthContext";
+import { getUserScopeDescription } from "../../../utils/hierarchyUtils";
 
 interface Subscription {
   id: string;

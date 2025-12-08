@@ -2,11 +2,11 @@ import { View, Text, ScrollView, StyleSheet, Image, ActivityIndicator } from "re
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useState, useContext } from "react";
-import { apiService } from "../services/api";
-import { AuthContext, User } from "../context/AuthContext";
+import { apiService } from "../../services/api";
+import { AuthContext, User } from "../../context/AuthContext";
 import { useRouter } from "expo-router";
-import { getHierarchyLevelName, getUserHierarchyPath, getUserScopeDescription } from "../utils/hierarchyUtils";
-import HierarchySelector from "../components/HierarchySelector";
+import { getHierarchyLevelName, getUserHierarchyPath, getUserScopeDescription } from "../../utils/hierarchyUtils";
+import HierarchySelector from "../../components/HierarchySelector";
 
 // Define user profile interface
 interface UserProfile {

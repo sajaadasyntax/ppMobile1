@@ -13,9 +13,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { apiService } from "../services/api";
-import { AuthContext } from "../context/AuthContext";
-import { socketService } from "../services/socketService";
+import { apiService } from "../../../services/api";
+import { AuthContext } from "../../../context/AuthContext";
+import { socketService } from "../../../services/socketService";
 
 interface Message {
   id: string;

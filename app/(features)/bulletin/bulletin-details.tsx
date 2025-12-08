@@ -3,13 +3,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { apiService } from "../services/api";
+import { apiService } from "../../../services/api";
 
 // Fallback images for when the server image is not available
 const fallbackImages = [
-  require("../assets/images/news1.png"),
-  require("../assets/images/news2.png"),
-  require("../assets/images/news3.png"),
+  require("../../../assets/images/news1.png"),
+  require("../../../assets/images/news2.png"),
+  require("../../../assets/images/news3.png"),
 ];
 
 // Define the Bulletin type
