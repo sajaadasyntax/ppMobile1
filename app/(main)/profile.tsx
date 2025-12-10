@@ -150,7 +150,7 @@ export default function Profile() {
         <View style={styles.header}>
           <View style={styles.profileImageContainer}>
             <Image
-              source={require("../../../assets/images/profile-placeholder.png")}
+              source={require("../../assets/images/profile-placeholder.png")}
               style={styles.profileImage}
             />
           </View>
