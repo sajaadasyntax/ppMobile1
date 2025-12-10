@@ -7,9 +7,9 @@ import { apiService } from "../../../services/api";
 
 // Fallback images for when the server image is not available
 const fallbackImages = [
-  require("../assets/images/news1.png"),
-  require("../assets/images/news2.png"),
-  require("../assets/images/news3.png"),
+  require("../../assets/images/news1.png"),
+  require("../../assets/images/news2.png"),
+  require("../../assets/images/news3.png"),
 ];
 
 // Define the VotingItem type
