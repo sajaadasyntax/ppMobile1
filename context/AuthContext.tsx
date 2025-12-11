@@ -2,7 +2,7 @@
 import { createContext, useState, useEffect, ReactNode, useContext } from "react";
 import * as SecureStore from "expo-secure-store";
 
-// Hierarchical level enum
+// Hierarchical level enum - matches backend schema.prisma AdminLevel
 export enum AdminLevel {
   GENERAL_SECRETARIAT = 'GENERAL_SECRETARIAT',
   REGION = 'REGION',
@@ -10,7 +10,10 @@ export enum AdminLevel {
   ADMIN_UNIT = 'ADMIN_UNIT',
   DISTRICT = 'DISTRICT',
   USER = 'USER',
-  ADMIN = 'ADMIN'
+  ADMIN = 'ADMIN',
+  NATIONAL_LEVEL = 'NATIONAL_LEVEL',
+  EXPATRIATE_GENERAL = 'EXPATRIATE_GENERAL',
+  EXPATRIATE_REGION = 'EXPATRIATE_REGION'
 }
 
 // Active hierarchy enum

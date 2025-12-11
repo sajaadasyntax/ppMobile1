@@ -2,7 +2,7 @@ import { View, Text, ScrollView, StyleSheet, Image, ActivityIndicator, RefreshCo
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useState, useContext } from "react";
-import { apiService } from "../../../services/api";
+import { apiService, SERVER_BASE_URL } from "../../../services/api";
 import { useRouter } from "expo-router";
 import { AuthContext } from "../../../context/AuthContext";
 import { getUserScopeDescription } from "../../../utils/hierarchyUtils";
@@ -122,7 +122,7 @@ export default function Bulletin() {
                 activeOpacity={0.8}
               >
                 <Image 
-                  source={bulletin.image ? { uri: bulletin.image } : getFallbackImage(bulletin.id)}
+                  source={bulletin.image ? { uri: bulletin.image.startsWith('http') ? bulletin.image : `${SERVER_BASE_URL}${bulletin.image}` } : getFallbackImage(bulletin.id)}
                   style={styles.newsImage}
                   defaultSource={fallbackImages[0]}
                 />

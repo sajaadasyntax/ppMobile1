@@ -3,7 +3,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { apiService } from "../../../services/api";
+import { apiService, SERVER_BASE_URL } from "../../../services/api";
 
 // Fallback images for when the server image is not available
 const fallbackImages = [
@@ -126,7 +126,7 @@ export default function BulletinDetails() {
           <Image
             source={
               bulletin.image
-                ? { uri: bulletin.image }
+                ? { uri: bulletin.image.startsWith('http') ? bulletin.image : `${SERVER_BASE_URL}${bulletin.image}` }
                 : getFallbackImage(bulletin.id)
             }
             style={styles.bulletinImage}
