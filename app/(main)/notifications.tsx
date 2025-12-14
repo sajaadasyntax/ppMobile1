@@ -57,9 +57,11 @@ export default function NotificationsScreen() {
 
     try {
       setError(null);
-      // getNotifications() already handles 404 by returning empty array, so no need to check for 404 here
+      // getNotifications() returns { notifications: [], pagination: {}, unreadCount: 0 }
       const data = await apiService.getNotifications();
-      setNotifications(data || []);
+      // Extract notifications array from the response object
+      const notificationsArray = Array.isArray(data) ? data : (data?.notifications || []);
+      setNotifications(notificationsArray);
     } catch (err: any) {
       console.error("Error fetching notifications:", err);
       setError(err.message || "فشل تحميل الإشعارات");

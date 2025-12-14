@@ -25,10 +25,13 @@ export default function MemberSurveys() {
       try {
         setLoading(true);
         const memberSurveys = await apiService.getMemberSurveys();
-        setSurveys(memberSurveys);
+        // Ensure we have an array (handle both array and object responses)
+        const surveysArray = Array.isArray(memberSurveys) ? memberSurveys : (memberSurveys?.surveys || memberSurveys?.data || []);
+        setSurveys(surveysArray);
       } catch (err: any) {
         console.error("Error fetching member surveys:", err);
-        setError(err.message || "Failed to load member surveys");
+        setError(err.message || "فشل جلب استبيانات الأعضاء");
+        setSurveys([]); // Set empty array on error
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -43,7 +46,8 @@ export default function MemberSurveys() {
     (async () => {
       try {
         const data = await apiService.getMemberSurveys();
-        setSurveys(data);
+        const surveysArray = Array.isArray(data) ? data : (data?.surveys || data?.data || []);
+        setSurveys(surveysArray);
         setError(null);
       } catch (err: any) {
         setError(err.message || "Failed to load member surveys");

@@ -26,10 +26,13 @@ export default function PublicSurveys() {
       try {
         setLoading(true);
         const publicSurveys = await apiService.getPublicSurveys();
-        setSurveys(publicSurveys);
+        // Ensure we have an array (handle both array and object responses)
+        const surveysArray = Array.isArray(publicSurveys) ? publicSurveys : (publicSurveys?.surveys || publicSurveys?.data || []);
+        setSurveys(surveysArray);
       } catch (err: any) {
         console.error("Error fetching public surveys:", err);
-        setError(err.message || "Failed to load public surveys");
+        setError(err.message || "فشل جلب الاستبيانات العامة");
+        setSurveys([]); // Set empty array on error
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -45,7 +48,8 @@ export default function PublicSurveys() {
     (async () => {
       try {
         const data = await apiService.getPublicSurveys();
-        setSurveys(data);
+        const surveysArray = Array.isArray(data) ? data : (data?.surveys || data?.data || []);
+        setSurveys(surveysArray);
         setError(null);
       } catch (err: any) {
         setError(err.message || "Failed to load public surveys");
