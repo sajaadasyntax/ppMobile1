@@ -2,9 +2,9 @@ import { io, Socket } from 'socket.io-client';
 import * as SecureStore from 'expo-secure-store';
 
 // Use the same base URL as the API
-const SERVER_BASE_URL = 'http://10.0.2.2:5000'; // For Android emulator
+// const SERVER_BASE_URL = 'http://10.0.2.2:5000'; // For Android emulator
 // const SERVER_BASE_URL = 'http://localhost:5000'; // For iOS simulator
-// const SERVER_BASE_URL = 'https://your-production-url.com'; // For production
+const SERVER_BASE_URL = 'https://ppsudan.org'; // For production
 
 type MessageHandler = (message: any) => void;
 type ErrorHandler = (error: { message: string }) => void;
