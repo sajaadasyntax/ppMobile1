@@ -1,25 +1,20 @@
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
-export default function Surveys() {
+export default function SurveysScreen() {
   const router = useRouter();
 
   const navigateToPublicSurveys = () => {
-    router.push("/public-surveys" as any);
+    router.push("/surveys/public-surveys");
   };
 
   const navigateToMemberSurveys = () => {
-    router.push("/member-surveys" as any);
+    router.push("/surveys/member-surveys");
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerText}>الاستبيانات</Text>
-      </View>
-
+    <View style={styles.container}>
       <View style={styles.content}>
         <Text style={styles.subTitle}>اختر نوع الاستبيان</Text>
 
@@ -77,7 +72,7 @@ export default function Surveys() {
           </Text>
         </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -85,18 +80,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",
-  },
-  header: {
-    padding: 20,
-    backgroundColor: "#2E7D32",
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
-  },
-  headerText: {
-    fontSize: 24,
-    color: "#FFFFFF",
-    textAlign: "center",
-    fontFamily: "Tajawal-Bold",
   },
   content: {
     flex: 1,
@@ -172,4 +155,4 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     lineHeight: 20,
   },
-}); 
+});

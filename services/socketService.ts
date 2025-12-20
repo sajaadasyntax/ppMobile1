@@ -136,13 +136,23 @@ class SocketService {
   }
 
   // Send a message via socket (real-time)
-  sendMessage(roomId: string, text: string): void {
+  sendMessage(roomId: string, text: string, messageType: string = 'TEXT', mediaUrl?: string, duration?: number): void {
     if (!this.socket?.connected) {
       console.warn('Cannot send message: Socket not connected');
       return;
     }
 
-    this.socket.emit('send_message', { roomId, text });
+    this.socket.emit('send_message', { roomId, text, messageType, mediaUrl, duration });
+  }
+
+  // Send a voice message via socket (real-time)
+  sendVoiceMessage(roomId: string, mediaUrl: string, duration: number): void {
+    if (!this.socket?.connected) {
+      console.warn('Cannot send voice message: Socket not connected');
+      return;
+    }
+
+    this.socket.emit('send_message', { roomId, messageType: 'VOICE', mediaUrl, duration });
   }
 
   // Register a handler for new messages in a specific room

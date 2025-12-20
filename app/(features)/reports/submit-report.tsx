@@ -9,12 +9,11 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import Colors from '../../../constants/Colors';
 import Font from '../../../constants/Font';
 import FontSize from '../../../constants/FontSize';
 import Spacing from '../../../constants/Spacing';
-import { Stack, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { apiService } from '../../../services/api';
@@ -118,16 +117,7 @@ export default function SubmitReportScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Stack.Screen 
-        options={{
-          headerTitle: 'تقديم تقرير',
-          headerTitleStyle: {
-            fontFamily: Font['Tajawal-Bold'],
-          },
-          headerTitleAlign: 'center',
-        }} 
-      />
+    <View style={styles.container}>
       <ScrollView 
         style={styles.scrollView}
         contentContainerStyle={styles.contentContainer}
@@ -239,7 +229,7 @@ export default function SubmitReportScreen() {
           )}
         </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

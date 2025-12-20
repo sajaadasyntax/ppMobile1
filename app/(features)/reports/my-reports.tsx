@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { apiService } from "../../../services/api";
@@ -158,29 +157,24 @@ export default function MyReportsScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerText}>تقاريري</Text>
-          {user && (
-            <Text style={styles.hierarchyText}>
-              {getUserScopeDescription(user)}
-            </Text>
-          )}
-        </View>
+      <View style={styles.container}>
+        {user && (
+          <View style={styles.hierarchyBanner}>
+            <Ionicons name="location-outline" size={16} color="#2E7D32" />
+            <Text style={styles.hierarchyText}>{getUserScopeDescription(user)}</Text>
+          </View>
+        )}
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#2E7D32" />
           <Text style={styles.loadingText}>جاري تحميل التقارير...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (error) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerText}>تقاريري</Text>
-        </View>
+      <View style={styles.container}>
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={50} color="#D32F2F" />
           <Text style={styles.errorText}>{error}</Text>
@@ -188,20 +182,18 @@ export default function MyReportsScreen() {
             <Text style={styles.retryButtonText}>إعادة المحاولة</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerText}>تقاريري</Text>
-        {user && (
-          <Text style={styles.hierarchyText}>
-            {getUserScopeDescription(user)}
-          </Text>
-        )}
-      </View>
+    <View style={styles.container}>
+      {user && (
+        <View style={styles.hierarchyBanner}>
+          <Ionicons name="location-outline" size={16} color="#2E7D32" />
+          <Text style={styles.hierarchyText}>{getUserScopeDescription(user)}</Text>
+        </View>
+      )}
 
       {reports.length === 0 ? (
         <View style={styles.emptyContainer}>
@@ -257,13 +249,13 @@ export default function MyReportsScreen() {
 
           <TouchableOpacity
             style={styles.fabButton}
-            onPress={() => router.push("/submit-report")}
+            onPress={() => router.push("/reports/submit-report")}
           >
             <Ionicons name="add" size={28} color="#FFFFFF" />
           </TouchableOpacity>
         </>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -272,32 +264,25 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#F5F5F5",
   },
-  header: {
-    padding: 20,
-    backgroundColor: "#2E7D32",
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
-  },
-  headerText: {
-    fontSize: 24,
-    color: "#FFFFFF",
-    textAlign: "center",
-    fontFamily: "Tajawal-Bold",
+  hierarchyBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#E8F5E9",
+    paddingVertical: 8,
+    gap: 6,
   },
   hierarchyText: {
-    fontSize: 14,
-    color: "#FFFFFF",
-    textAlign: "center",
-    fontFamily: "Tajawal-Regular",
-    marginTop: 5,
-    opacity: 0.9,
+    fontSize: 13,
+    fontFamily: "Tajawal-Medium",
+    color: "#2E7D32",
   },
   statsContainer: {
     flexDirection: "row",
     justifyContent: "space-around",
     padding: 16,
     backgroundColor: "#FFFFFF",
-    marginTop: -10,
+    marginTop: 10,
     marginHorizontal: 16,
     borderRadius: 12,
     shadowColor: "#000",

@@ -1,25 +1,20 @@
-import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
-export default function Voting() {
+export default function VotingScreen() {
   const router = useRouter();
 
   const navigateToElectoralVoting = () => {
-    router.push("/electoral-voting" as const);
+    router.push("/voting/electoral-voting");
   };
 
   const navigateToOpinionVoting = () => {
-    router.push("/opinion-voting" as const);
+    router.push("/voting/opinion-voting");
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerText}>التصويت</Text>
-      </View>
-
+    <View style={styles.container}>
       <View style={styles.content}>
         <Text style={styles.subTitle}>اختر نوع التصويت</Text>
 
@@ -74,7 +69,7 @@ export default function Voting() {
           </Text>
         </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -82,18 +77,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",
-  },
-  header: {
-    padding: 20,
-    backgroundColor: "#2E7D32",
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
-  },
-  headerText: {
-    fontSize: 24,
-    color: "#FFFFFF",
-    textAlign: "center",
-    fontFamily: "Tajawal-Bold",
   },
   content: {
     flex: 1,
@@ -169,4 +152,4 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     lineHeight: 20,
   },
-}); 
+});

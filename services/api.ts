@@ -124,10 +124,12 @@ export const apiService = {
     }
   },
 
-  // Bulletins
+  // Bulletins (hierarchy-aware - shows bulletins for user's level and above)
   getBulletins: async (params?: { page?: number; limit?: number }) => {
     try {
-      const response = await api.get('/content/bulletins', { params });
+      // Use hierarchical endpoint to get bulletins filtered by user's hierarchy
+      // A user in a district will see: district-specific + adminUnit-wide + locality-wide + region-wide + national-wide bulletins
+      const response = await api.get('/content/bulletins/hierarchical', { params });
       return response.data;
     } catch (error: any) {
       console.error('Bulletins fetch error:', error.response?.data || error.message);
@@ -232,7 +234,8 @@ export const apiService = {
 
   createSubscription: async (planId: string) => {
     try {
-      const response = await api.post('/subscriptions/subscribe', { planId });
+      // Use content subscriptions endpoint for user self-subscription
+      const response = await api.post('/content/subscriptions/subscribe', { planId });
       return response.data;
     } catch (error: any) {
       console.error('Subscription creation error:', error.response?.data || error.message);
@@ -347,13 +350,50 @@ export const apiService = {
   },
 
   // Send a message to a chat room
-  sendChatMessage: async (roomId: string, text: string) => {
+  sendChatMessage: async (roomId: string, text: string, messageType: string = 'TEXT', mediaUrl?: string, duration?: number) => {
     try {
-      const response = await api.post(`/chat/chatrooms/${roomId}/messages`, { text });
+      const response = await api.post(`/chat/chatrooms/${roomId}/messages`, { 
+        text, 
+        messageType,
+        mediaUrl,
+        duration
+      });
       return response.data;
     } catch (error: any) {
       console.error('Send message error:', error.response?.data || error.message);
       throw new Error(error.response?.data?.error || 'فشل إرسال الرسالة');
+    }
+  },
+
+  // Upload voice message to a chat room
+  uploadVoiceMessage: async (roomId: string, audioUri: string, duration: number) => {
+    try {
+      const formData = new FormData();
+      
+      // Determine file extension and mime type
+      const fileExtension = audioUri.split('.').pop()?.toLowerCase() || 'm4a';
+      const mimeType = fileExtension === 'wav' ? 'audio/wav' : 
+                       fileExtension === 'mp3' ? 'audio/mpeg' :
+                       fileExtension === 'webm' ? 'audio/webm' :
+                       'audio/m4a';
+      
+      formData.append('voice', {
+        uri: audioUri,
+        type: mimeType,
+        name: `voice-message.${fileExtension}`,
+      } as any);
+      
+      formData.append('duration', String(Math.round(duration)));
+
+      const response = await api.post(`/chat/chatrooms/${roomId}/voice`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Voice message upload error:', error.response?.data || error.message);
+      throw new Error(error.response?.data?.error || 'فشل إرسال الرسالة الصوتية');
     }
   },
 
@@ -362,10 +402,17 @@ export const apiService = {
   // Get public surveys (hierarchy-filtered)
   getPublicSurveys: async () => {
     try {
+      console.log('[API] Fetching public surveys from:', '/content/surveys/public/hierarchical');
       const response = await api.get('/content/surveys/public/hierarchical');
+      console.log('[API] Public surveys response:', response.status, response.data?.length || 0, 'surveys');
       return response.data;
     } catch (error: any) {
-      console.error('Public surveys fetch error:', error.response?.data || error.message);
+      console.error('[API] Public surveys fetch error:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        url: error.config?.url
+      });
       throw new Error(error.response?.data?.error || 'فشل جلب الاستبيانات العامة');
     }
   },
@@ -373,10 +420,17 @@ export const apiService = {
   // Get member surveys (hierarchy-filtered)
   getMemberSurveys: async () => {
     try {
+      console.log('[API] Fetching member surveys from:', '/content/surveys/member/hierarchical');
       const response = await api.get('/content/surveys/member/hierarchical');
+      console.log('[API] Member surveys response:', response.status, response.data?.length || 0, 'surveys');
       return response.data;
     } catch (error: any) {
-      console.error('Member surveys fetch error:', error.response?.data || error.message);
+      console.error('[API] Member surveys fetch error:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        url: error.config?.url
+      });
       throw new Error(error.response?.data?.error || 'فشل جلب استبيانات الأعضاء');
     }
   },

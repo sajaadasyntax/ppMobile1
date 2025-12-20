@@ -1,14 +1,13 @@
 import React, { useEffect, useState, useContext } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
-import { RefreshControl } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Stack, useRouter } from "expo-router";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from "react-native";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { apiService } from "../../../services/api";
 import { AuthContext } from "../../../context/AuthContext";
 import { Survey } from "../../../types/survey";
 
 export default function PublicSurveys() {
+  console.log('[PublicSurveys] Component rendering');
   const [surveys, setSurveys] = useState<Survey[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -17,6 +16,7 @@ export default function PublicSurveys() {
   const router = useRouter();
 
   useEffect(() => {
+    console.log('[PublicSurveys] useEffect running, token:', token ? 'exists' : 'missing');
     async function fetchSurveys() {
       if (!token) {
         router.replace("/login");
@@ -105,36 +105,18 @@ export default function PublicSurveys() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <Stack.Screen 
-          options={{
-            headerTitle: "الاستبيانات العامة",
-            headerTitleStyle: {
-              fontFamily: "Tajawal-Bold",
-            },
-            headerTitleAlign: "center",
-          }}
-        />
+      <View style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#2E7D32" />
           <Text style={styles.loadingText}>جاري تحميل الاستبيانات...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (error) {
     return (
-      <SafeAreaView style={styles.container}>
-        <Stack.Screen 
-          options={{
-            headerTitle: "الاستبيانات العامة",
-            headerTitleStyle: {
-              fontFamily: "Tajawal-Bold",
-            },
-            headerTitleAlign: "center",
-          }}
-        />
+      <View style={styles.container}>
         <View style={styles.centeredContent}>
           <Ionicons name="alert-circle-outline" size={48} color="#e53e3e" />
           <Text style={styles.errorText}>{error}</Text>
@@ -152,21 +134,12 @@ export default function PublicSurveys() {
             <Text style={styles.retryButtonText}>إعادة المحاولة</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Stack.Screen 
-        options={{
-          headerTitle: "الاستبيانات العامة",
-          headerTitleStyle: {
-            fontFamily: "Tajawal-Bold",
-          },
-          headerTitleAlign: "center",
-        }}
-      />
+    <View style={styles.container}>
       <ScrollView
         style={styles.content}
         contentContainerStyle={styles.contentContainer}
@@ -205,7 +178,7 @@ export default function PublicSurveys() {
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

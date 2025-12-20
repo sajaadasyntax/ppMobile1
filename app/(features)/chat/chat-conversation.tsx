@@ -10,16 +10,20 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { apiService } from "../../../services/api";
 import { AuthContext } from "../../../context/AuthContext";
 import { socketService } from "../../../services/socketService";
+import VoiceRecorder from "../../../components/VoiceRecorder";
+import VoicePlayer from "../../../components/VoicePlayer";
 
 interface Message {
   id: string;
-  text: string;
+  text: string | null;
+  messageType?: 'TEXT' | 'VOICE' | 'IMAGE';
+  mediaUrl?: string | null;
+  duration?: number | null;
   createdAt: string;
   senderId: string;
   sender: {
@@ -45,6 +49,11 @@ export default function ChatConversationScreen() {
   const isLoadingMoreRef = useRef(false);
   const [socketConnected, setSocketConnected] = useState(false);
   const socketUnsubscribeRef = useRef<(() => void) | null>(null);
+  
+  // Voice message states
+  const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [sendingVoice, setSendingVoice] = useState(false);
 
   const fetchMessages = async (cursor?: string, isLoadMore: boolean = false) => {
     if (!token || !roomId) {
@@ -211,6 +220,39 @@ export default function ChatConversationScreen() {
     }
   };
 
+  // Handle voice message recording complete
+  const handleVoiceRecordingComplete = async (uri: string, duration: number) => {
+    if (!roomId || sendingVoice) return;
+
+    setSendingVoice(true);
+    setShowVoiceRecorder(false);
+
+    try {
+      console.log('Uploading voice message:', uri, 'duration:', duration);
+      
+      // Upload the voice message
+      const sentMessage = await apiService.uploadVoiceMessage(roomId, uri, duration);
+      
+      // The message will come back via socket if connected, otherwise add it manually
+      if (!socketConnected) {
+        setMessages((prev) => [sentMessage, ...prev]);
+      }
+      
+      console.log('Voice message sent successfully');
+    } catch (err: any) {
+      console.error("Error sending voice message:", err);
+      setError(err.message || "فشل إرسال الرسالة الصوتية");
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setSendingVoice(false);
+    }
+  };
+
+  const handleVoiceRecorderCancel = () => {
+    setShowVoiceRecorder(false);
+    setIsRecording(false);
+  };
+
   const loadMoreMessages = async () => {
     // Use ref for synchronous check to prevent race conditions with rapid calls
     if (!hasMore || isLoadingMoreRef.current || messages.length === 0) return;
@@ -265,6 +307,7 @@ export default function ChatConversationScreen() {
   const renderMessage = ({ item, index }: { item: Message; index: number }) => {
     const isMine = isMyMessage(item);
     const senderName = item.sender?.memberDetails?.fullName || "مستخدم";
+    const isVoiceMessage = item.messageType === 'VOICE' && item.mediaUrl;
     
     // In inverted list, we check the next item (index + 1) for date separator
     // because the list is rendered in reverse order
@@ -275,13 +318,27 @@ export default function ChatConversationScreen() {
     return (
       <View>
         <View style={[styles.messageRow, isMine ? styles.myMessageRow : styles.otherMessageRow]}>
-          <View style={[styles.messageBubble, isMine ? styles.myMessage : styles.otherMessage]}>
+          <View style={[
+            styles.messageBubble, 
+            isMine ? styles.myMessage : styles.otherMessage,
+            isVoiceMessage && styles.voiceMessageBubble
+          ]}>
             {!isMine && (
               <Text style={styles.senderName}>{senderName}</Text>
             )}
-            <Text style={[styles.messageText, isMine ? styles.myMessageText : styles.otherMessageText]}>
-              {item.text}
-            </Text>
+            
+            {isVoiceMessage ? (
+              <VoicePlayer 
+                mediaUrl={item.mediaUrl!}
+                duration={item.duration || null}
+                isMine={isMine}
+              />
+            ) : (
+              <Text style={[styles.messageText, isMine ? styles.myMessageText : styles.otherMessageText]}>
+                {item.text}
+              </Text>
+            )}
+            
             <Text style={[styles.messageTime, isMine ? styles.myMessageTime : styles.otherMessageTime]}>
               {formatMessageTime(item.createdAt)}
             </Text>
@@ -300,29 +357,25 @@ export default function ChatConversationScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
         <Stack.Screen
           options={{
             headerTitle: title || "المحادثة",
-            headerTitleStyle: { fontFamily: "Tajawal-Bold" },
-            headerTitleAlign: "center",
           }}
         />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#2E7D32" />
           <Text style={styles.loadingText}>جاري تحميل الرسائل...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={["bottom"]}>
+    <View style={styles.container}>
       <Stack.Screen
         options={{
           headerTitle: title || "المحادثة",
-          headerTitleStyle: { fontFamily: "Tajawal-Bold" },
-          headerTitleAlign: "center",
         }}
       />
 
@@ -368,31 +421,59 @@ export default function ChatConversationScreen() {
           />
         )}
 
-        {/* Input Area */}
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.textInput}
-            value={newMessage}
-            onChangeText={setNewMessage}
-            placeholder="اكتب رسالتك..."
-            placeholderTextColor="#999999"
-            multiline
-            maxLength={1000}
+        {/* Voice Recorder */}
+        {showVoiceRecorder && (
+          <VoiceRecorder
+            onRecordingComplete={handleVoiceRecordingComplete}
+            onCancel={handleVoiceRecorderCancel}
+            isRecording={isRecording}
+            setIsRecording={setIsRecording}
           />
-          <TouchableOpacity
-            style={[styles.sendButton, (!newMessage.trim() || sending) && styles.sendButtonDisabled]}
-            onPress={handleSendMessage}
-            disabled={!newMessage.trim() || sending}
-          >
-            {sending ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Ionicons name="send" size={22} color="#FFFFFF" />
-            )}
-          </TouchableOpacity>
-        </View>
+        )}
+
+        {/* Sending Voice Indicator */}
+        {sendingVoice && (
+          <View style={styles.sendingVoiceContainer}>
+            <ActivityIndicator size="small" color="#2E7D32" />
+            <Text style={styles.sendingVoiceText}>جاري إرسال الرسالة الصوتية...</Text>
+          </View>
+        )}
+
+        {/* Input Area */}
+        {!showVoiceRecorder && !sendingVoice && (
+          <View style={styles.inputContainer}>
+            {/* Voice message button */}
+            <TouchableOpacity
+              style={styles.voiceButton}
+              onPress={() => setShowVoiceRecorder(true)}
+            >
+              <Ionicons name="mic-outline" size={24} color="#666666" />
+            </TouchableOpacity>
+
+            <TextInput
+              style={styles.textInput}
+              value={newMessage}
+              onChangeText={setNewMessage}
+              placeholder="اكتب رسالتك..."
+              placeholderTextColor="#999999"
+              multiline
+              maxLength={1000}
+            />
+            <TouchableOpacity
+              style={[styles.sendButton, (!newMessage.trim() || sending) && styles.sendButtonDisabled]}
+              onPress={handleSendMessage}
+              disabled={!newMessage.trim() || sending}
+            >
+              {sending ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Ionicons name="send" size={22} color="#FFFFFF" />
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -479,6 +560,10 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 16,
   },
+  voiceMessageBubble: {
+    padding: 4,
+    backgroundColor: 'transparent',
+  },
   myMessage: {
     backgroundColor: "#2E7D32",
     borderBottomRightRadius: 4,
@@ -526,6 +611,13 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#E0E0E0",
   },
+  voiceButton: {
+    width: 44,
+    height: 44,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 4,
+  },
   textInput: {
     flex: 1,
     backgroundColor: "#F5F5F5",
@@ -550,5 +642,19 @@ const styles = StyleSheet.create({
   sendButtonDisabled: {
     backgroundColor: "#CCCCCC",
   },
+  sendingVoiceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+  },
+  sendingVoiceText: {
+    marginLeft: 8,
+    fontSize: 14,
+    fontFamily: 'Tajawal-Regular',
+    color: '#666666',
+  },
 });
-

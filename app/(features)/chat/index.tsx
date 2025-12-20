@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { apiService } from "../../../services/api";
@@ -103,18 +102,6 @@ export default function ChatScreen() {
     }
   };
 
-  const getMemberNames = (memberships: ChatMember[], maxShow: number = 3) => {
-    const names = memberships
-      .slice(0, maxShow)
-      .map((m) => m.user.memberDetails?.fullName || m.user.mobileNumber)
-      .join("، ");
-    
-    if (memberships.length > maxShow) {
-      return `${names} و${memberships.length - maxShow} آخرين`;
-    }
-    return names;
-  };
-
   const renderChatRoom = ({ item }: { item: ChatRoom }) => {
     const lastMessage = item.messages && item.messages.length > 0 ? item.messages[0] : null;
     const lastMessageText = lastMessage 
@@ -124,7 +111,7 @@ export default function ChatScreen() {
     return (
       <TouchableOpacity
         style={styles.chatCard}
-        onPress={() => router.push(`/chat-conversation?roomId=${item.id}&title=${encodeURIComponent(item.title)}`)}
+        onPress={() => router.push(`/chat/chat-conversation?roomId=${item.id}&title=${encodeURIComponent(item.title)}`)}
         activeOpacity={0.7}
       >
         <View style={styles.avatarContainer}>
@@ -160,29 +147,24 @@ export default function ChatScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerText}>المحادثات</Text>
-          {user && (
-            <Text style={styles.hierarchyText}>
-              {getUserScopeDescription(user)}
-            </Text>
-          )}
-        </View>
+      <View style={styles.container}>
+        {user && (
+          <View style={styles.hierarchyBanner}>
+            <Ionicons name="location-outline" size={16} color="#2E7D32" />
+            <Text style={styles.hierarchyText}>{getUserScopeDescription(user)}</Text>
+          </View>
+        )}
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#2E7D32" />
           <Text style={styles.loadingText}>جاري تحميل المحادثات...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (error) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerText}>المحادثات</Text>
-        </View>
+      <View style={styles.container}>
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={50} color="#D32F2F" />
           <Text style={styles.errorText}>{error}</Text>
@@ -190,20 +172,18 @@ export default function ChatScreen() {
             <Text style={styles.retryButtonText}>إعادة المحاولة</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerText}>المحادثات</Text>
-        {user && (
-          <Text style={styles.hierarchyText}>
-            {getUserScopeDescription(user)}
-          </Text>
-        )}
-      </View>
+    <View style={styles.container}>
+      {user && (
+        <View style={styles.hierarchyBanner}>
+          <Ionicons name="location-outline" size={16} color="#2E7D32" />
+          <Text style={styles.hierarchyText}>{getUserScopeDescription(user)}</Text>
+        </View>
+      )}
 
       {chatRooms.length === 0 ? (
         <View style={styles.emptyContainer}>
@@ -230,7 +210,7 @@ export default function ChatScreen() {
           ItemSeparatorComponent={() => <View style={styles.separator} />}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -239,25 +219,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FFFFFF",
   },
-  header: {
-    padding: 20,
-    backgroundColor: "#2E7D32",
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
-  },
-  headerText: {
-    fontSize: 24,
-    color: "#FFFFFF",
-    textAlign: "center",
-    fontFamily: "Tajawal-Bold",
+  hierarchyBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#E8F5E9",
+    paddingVertical: 8,
+    gap: 6,
   },
   hierarchyText: {
-    fontSize: 14,
-    color: "#FFFFFF",
-    textAlign: "center",
-    fontFamily: "Tajawal-Regular",
-    marginTop: 5,
-    opacity: 0.9,
+    fontSize: 13,
+    fontFamily: "Tajawal-Medium",
+    color: "#2E7D32",
   },
   loadingContainer: {
     flex: 1,
@@ -381,4 +354,3 @@ const styles = StyleSheet.create({
     height: 10,
   },
 });
-

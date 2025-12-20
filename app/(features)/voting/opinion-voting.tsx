@@ -1,5 +1,4 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, RefreshControl } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useState, useEffect } from "react";
@@ -174,18 +173,7 @@ export default function OpinionVoting() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-        <Text style={styles.headerText}>تصويت الرأي</Text>
-        <View style={styles.placeholderButton} />
-      </View>
-
+    <View style={styles.container}>
       {loading && !refreshing ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#2E7D32" />
@@ -360,7 +348,7 @@ export default function OpinionVoting() {
           )}
         </ScrollView>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -368,28 +356,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",
-  },
-  header: {
-    padding: 20,
-    backgroundColor: "#2E7D32",
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  backButton: {
-    width: 40,
-  },
-  placeholderButton: {
-    width: 40,
-  },
-  headerText: {
-    fontSize: 20,
-    color: "#FFFFFF",
-    textAlign: "center",
-    fontFamily: "Tajawal-Bold",
-    flex: 1,
   },
   content: {
     flex: 1,

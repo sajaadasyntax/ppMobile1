@@ -1,8 +1,7 @@
 import { View, Text, StyleSheet, Image, ScrollView, ActivityIndicator, TouchableOpacity, Share } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { apiService, SERVER_BASE_URL } from "../../../services/api";
 
 // Fallback images for when the server image is not available
@@ -85,26 +84,18 @@ export default function BulletinDetails() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backButton}
-        >
-          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-        <Text style={styles.headerText}>تفاصيل النشرة</Text>
-        <TouchableOpacity
-          onPress={shareBulletin}
-          style={styles.shareButton}
-          disabled={!bulletin}
-        >
-          <Ionicons name="share-social" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-      </View>
+    <View style={styles.container}>
+      <Stack.Screen
+        options={{
+          headerTitle: 'تفاصيل النشرة',
+          headerRight: () => (
+            <TouchableOpacity onPress={shareBulletin} disabled={!bulletin} style={{ marginRight: 10 }}>
+              <Ionicons name="share-social" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+          ),
+        }}
+      />
 
-      {/* Content */}
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#2E7D32" />
@@ -149,7 +140,7 @@ export default function BulletinDetails() {
           <Text style={styles.emptyText}>النشرة غير موجودة</Text>
         </View>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -157,28 +148,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 20,
-    backgroundColor: "#2E7D32",
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
-  },
-  headerText: {
-    fontSize: 20,
-    color: "#FFFFFF",
-    textAlign: "center",
-    fontFamily: "Tajawal-Bold",
-    flex: 1,
-  },
-  backButton: {
-    padding: 5,
-  },
-  shareButton: {
-    padding: 5,
   },
   content: {
     flex: 1,

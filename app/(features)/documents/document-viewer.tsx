@@ -7,8 +7,7 @@ import {
   ActivityIndicator,
   Linking,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 export default function DocumentViewer() {
@@ -47,14 +46,8 @@ export default function DocumentViewer() {
 
   if (!url) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
-            <Ionicons name="arrow-forward" size={24} color="#333" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>خطأ</Text>
-          <View style={styles.placeholder} />
-        </View>
+      <View style={styles.container}>
+        <Stack.Screen options={{ headerTitle: 'خطأ' }} />
         <View style={styles.errorContainer}>
           <Ionicons name="document-text-outline" size={64} color="#ccc" />
           <Text style={styles.errorText}>لم يتم تحديد مستند للعرض</Text>
@@ -62,22 +55,13 @@ export default function DocumentViewer() {
             <Text style={styles.retryButtonText}>العودة</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
-          <Ionicons name="arrow-forward" size={24} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {decodedTitle}
-        </Text>
-        <View style={styles.placeholder} />
-      </View>
+    <View style={styles.container}>
+      <Stack.Screen options={{ headerTitle: decodedTitle }} />
 
       {/* Document Info */}
       <View style={styles.contentContainer}>
@@ -113,7 +97,7 @@ export default function DocumentViewer() {
           <Text style={styles.downloadButtonText}>تحميل المستند</Text>
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -121,30 +105,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E0E0E0",
-    backgroundColor: "#FFFFFF",
-  },
-  backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 18,
-    fontFamily: "Tajawal-Bold",
-    color: "#333",
-    textAlign: "center",
-    marginHorizontal: 8,
-  },
-  placeholder: {
-    width: 40,
   },
   contentContainer: {
     flex: 1,

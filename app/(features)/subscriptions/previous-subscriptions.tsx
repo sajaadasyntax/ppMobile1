@@ -1,23 +1,34 @@
 import React, { useEffect, useState, useContext } from "react";
 import { View, Text, ScrollView, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { apiService } from "../../../services/api";
 import { AuthContext } from "../../../context/AuthContext";
 import { getUserScopeDescription } from "../../../utils/hierarchyUtils";
 
+// Backend returns flattened subscription data (not nested plan object)
 interface Subscription {
   id: string;
-  status: string;
+  title: string;
+  price: string;
+  currency: string;
+  period: string;
   startDate: string;
   endDate: string;
-  plan: {
-    id: string;
-    name: string;
-    price: number;
-  };
+  status: string;
+  features?: string;
 }
+
+const getPeriodLabel = (period: string): string => {
+  switch (period) {
+    case 'monthly': return 'شهري';
+    case 'quarterly': return 'ربع سنوي';
+    case 'biannual': return 'نصف سنوي';
+    case 'annual': return 'سنوي';
+    case 'one-time': return 'مرة واحدة';
+    default: return period;
+  }
+};
 
 export default function PreviousSubscriptions() {
   const router = useRouter();
@@ -36,9 +47,8 @@ export default function PreviousSubscriptions() {
     }
     try {
       setError(null);
-      // Get previous/expired subscriptions using the correct endpoint
       const data = await apiService.getPreviousSubscriptions();
-      setSubscriptions(data || []);
+      setSubscriptions(Array.isArray(data) ? data : []);
     } catch (err: any) {
       console.error("Error fetching subscriptions:", err);
       setError(err.message || "فشل تحميل الاشتراكات السابقة");
@@ -51,42 +61,52 @@ export default function PreviousSubscriptions() {
   useEffect(() => { fetchSubscriptions(); }, [token]);
   const onRefresh = () => { setRefreshing(true); fetchSubscriptions(); };
 
-  const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString("ar-SA");
-  const formatPrice = (price: number) => price.toLocaleString("ar-SA") + " ج.س";
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'ACTIVE': return 'نشط';
-      case 'EXPIRED': return 'منتهي';
-      case 'CANCELLED': return 'ملغي';
-      case 'PENDING': return 'قيد الانتظار';
-      default: return status;
+  const formatDate = (dateString: string) => {
+    try {
+      return new Date(dateString).toLocaleDateString("ar-SA");
+    } catch {
+      return dateString;
     }
   };
+
+  const formatPrice = (price: string | number, currency?: string) => {
+    const numPrice = typeof price === 'string' ? parseFloat(price) : price;
+    return numPrice.toLocaleString("ar-SA") + " " + (currency || "ج.س");
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'active': return 'نشط';
+      case 'expired': return 'منتهي';
+      case 'cancelled': return 'ملغي';
+      case 'pending': return 'قيد الانتظار';
+      default: return status || 'غير محدد';
+    }
+  };
+
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'ACTIVE': return '#4CAF50';
-      case 'EXPIRED': return '#757575';
-      case 'CANCELLED': return '#F44336';
+    switch (status?.toLowerCase()) {
+      case 'active': return '#4CAF50';
+      case 'expired': return '#757575';
+      case 'cancelled': return '#F44336';
       default: return '#FF9800';
     }
   };
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}><Text style={styles.headerText}>الاشتراكات السابقة</Text></View>
-        <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#2E7D32" /><Text style={styles.loadingText}>جاري التحميل...</Text></View>
-      </SafeAreaView>
+      <View style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#2E7D32" />
+          <Text style={styles.loadingText}>جاري التحميل...</Text>
+        </View>
+      </View>
     );
   }
 
   if (error) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerText}>الاشتراكات السابقة</Text>
-          {user && <Text style={styles.hierarchyText}>{getUserScopeDescription(user)}</Text>}
-        </View>
+      <View style={styles.container}>
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={50} color="#D32F2F" />
           <Text style={styles.errorText}>{error}</Text>
@@ -94,16 +114,18 @@ export default function PreviousSubscriptions() {
             <Text style={styles.retryButtonText}>إعادة المحاولة</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerText}>الاشتراكات السابقة</Text>
-        {user && <Text style={styles.hierarchyText}>{getUserScopeDescription(user)}</Text>}
-      </View>
+    <View style={styles.container}>
+      {user && (
+        <View style={styles.hierarchyBanner}>
+          <Ionicons name="location-outline" size={16} color="#2E7D32" />
+          <Text style={styles.hierarchyBannerText}>{getUserScopeDescription(user)}</Text>
+        </View>
+      )}
       <ScrollView 
         style={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#2E7D32"]} tintColor="#2E7D32" />}
@@ -117,12 +139,20 @@ export default function PreviousSubscriptions() {
           subscriptions.map((subscription) => (
             <View key={subscription.id} style={styles.card}>
               <View style={styles.cardHeader}>
-                <Text style={styles.title}>{subscription.plan?.name || 'اشتراك'}</Text>
+                <Text style={styles.title}>{subscription.title || 'اشتراك'}</Text>
                 <View style={[styles.statusBadge, { backgroundColor: getStatusColor(subscription.status) }]}>
                   <Text style={styles.statusText}>{getStatusLabel(subscription.status)}</Text>
                 </View>
               </View>
               <View style={styles.cardBody}>
+                <View style={styles.infoRow}>
+                  <Ionicons name="pricetag-outline" size={20} color="#2E7D32" />
+                  <Text style={styles.infoText}>{formatPrice(subscription.price, subscription.currency)}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Ionicons name="repeat-outline" size={20} color="#2E7D32" />
+                  <Text style={styles.infoText}>{getPeriodLabel(subscription.period)}</Text>
+                </View>
                 <View style={styles.infoRow}>
                   <Ionicons name="calendar-outline" size={20} color="#2E7D32" />
                   <Text style={styles.infoText}>من: {formatDate(subscription.startDate)}</Text>
@@ -131,49 +161,36 @@ export default function PreviousSubscriptions() {
                   <Ionicons name="calendar" size={20} color="#2E7D32" />
                   <Text style={styles.infoText}>إلى: {formatDate(subscription.endDate)}</Text>
                 </View>
-                {subscription.plan?.price && (
-                  <View style={styles.infoRow}>
-                    <Ionicons name="cash-outline" size={20} color="#2E7D32" />
-                    <Text style={styles.infoText}>{formatPrice(subscription.plan.price)}</Text>
-                  </View>
-                )}
               </View>
             </View>
           ))
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#F5F5F5",
   },
-  header: {
-    padding: 20,
-    backgroundColor: "#2E7D32",
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+  hierarchyBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#E8F5E9",
+    paddingVertical: 8,
+    gap: 6,
   },
-  headerText: {
-    fontSize: 24,
-    color: "#FFFFFF",
-    textAlign: "center",
-    fontFamily: "Tajawal-Bold",
-  },
-  hierarchyText: {
-    fontSize: 14,
-    color: "#FFFFFF",
-    textAlign: "center",
-    fontFamily: "Tajawal-Regular",
-    marginTop: 5,
-    opacity: 0.9,
+  hierarchyBannerText: {
+    fontSize: 13,
+    fontFamily: "Tajawal-Medium",
+    color: "#2E7D32",
   },
   content: {
     flex: 1,
-    padding: 20,
+    padding: 16,
   },
   loadingContainer: {
     flex: 1,
@@ -198,20 +215,18 @@ const styles = StyleSheet.create({
     fontFamily: "Tajawal-Regular",
     color: "#888888",
     marginTop: 16,
+    textAlign: "center",
   },
   card: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 15,
-    padding: 15,
-    marginBottom: 15,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
     elevation: 2,
     shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 2,
     borderWidth: 1,
     borderColor: "#E0E0E0",
   },
@@ -219,35 +234,36 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 10,
+    marginBottom: 12,
   },
   title: {
     fontSize: 18,
     fontFamily: "Tajawal-Bold",
-    color: "#2E7D32",
+    color: "#333",
+    flex: 1,
   },
   statusBadge: {
     paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 15,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   statusText: {
     color: "#FFFFFF",
-    fontFamily: "Tajawal-Regular",
-    fontSize: 14,
+    fontFamily: "Tajawal-Medium",
+    fontSize: 12,
   },
   cardBody: {
-    gap: 10,
+    gap: 8,
   },
   infoRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
   },
   infoText: {
-    fontSize: 16,
+    fontSize: 14,
     fontFamily: "Tajawal-Regular",
-    color: "#333333",
+    color: "#666",
   },
   errorContainer: {
     flex: 1,
@@ -274,4 +290,4 @@ const styles = StyleSheet.create({
     fontFamily: "Tajawal-Bold",
     fontSize: 16,
   },
-}); 
+});

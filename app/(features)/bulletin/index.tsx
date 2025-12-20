@@ -1,5 +1,4 @@
 import { View, Text, ScrollView, StyleSheet, Image, ActivityIndicator, RefreshControl, TouchableOpacity } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useState, useContext } from "react";
 import { apiService, SERVER_BASE_URL } from "../../../services/api";
@@ -26,7 +25,7 @@ interface Bulletin {
   updatedAt: string;
 }
 
-export default function Bulletin() {
+export default function BulletinScreen() {
   const router = useRouter();
   const { user } = useContext(AuthContext) || {};
   const [bulletins, setBulletins] = useState<Bulletin[]>([]);
@@ -74,84 +73,85 @@ export default function Bulletin() {
     return fallbackImages[index] || fallbackImages[0];
   };
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerText}>النشرة</Text>
-        {user && (
-          <Text style={styles.hierarchyText}>
-            {getUserScopeDescription(user)}
-          </Text>
-        )}
+  if (loading && !refreshing) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#2E7D32" />
+        <Text style={styles.loadingText}>جاري تحميل النشرة...</Text>
       </View>
-      
-      {loading && !refreshing ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2E7D32" />
-          <Text style={styles.loadingText}>جاري تحميل النشرة...</Text>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.errorContainer}>
+        <Ionicons name="alert-circle" size={50} color="#D32F2F" />
+        <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity onPress={fetchBulletins}>
+          <Text style={styles.retryText}>إعادة المحاولة</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      {user && (
+        <View style={styles.hierarchyBanner}>
+          <Ionicons name="location-outline" size={16} color="#2E7D32" />
+          <Text style={styles.hierarchyText}>{getUserScopeDescription(user)}</Text>
         </View>
-      ) : error ? (
-        <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={50} color="#D32F2F" />
-          <Text style={styles.errorText}>{error}</Text>
-          <Text 
-            style={styles.retryText}
-            onPress={fetchBulletins}
-          >
-            إعادة المحاولة
-          </Text>
-        </View>
-      ) : (
-        <ScrollView 
-          style={styles.content}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={["#2E7D32"]}
-              tintColor="#2E7D32"
-            />
-          }
-        >
-          {bulletins.length > 0 ? (
-            bulletins.map((bulletin) => (
-              <TouchableOpacity
-                key={bulletin.id}
-                style={styles.newsCard}
-                onPress={() => router.push(`/bulletin-details?id=${bulletin.id}`)}
-                activeOpacity={0.8}
-              >
-                <Image 
-                  source={bulletin.image ? { uri: bulletin.image.startsWith('http') ? bulletin.image : `${SERVER_BASE_URL}${bulletin.image}` } : getFallbackImage(bulletin.id)}
-                  style={styles.newsImage}
-                  defaultSource={fallbackImages[0]}
-                />
-                <View style={styles.newsContent}>
-                  <View style={styles.newsHeader}>
-                    <Text style={styles.newsTitle}>{bulletin.title}</Text>
-                    <View style={styles.dateContainer}>
-                      <Ionicons name="calendar" size={16} color="#2E7D32" />
-                      <Text style={styles.dateText}>
-                        {formatDate(bulletin.date || bulletin.createdAt)}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={styles.newsText} numberOfLines={3} ellipsizeMode="tail">
-                    {bulletin.content}
-                  </Text>
-                  <Text style={styles.readMoreText}>اقرأ المزيد</Text>
-                </View>
-              </TouchableOpacity>
-            ))
-          ) : (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="newspaper-outline" size={60} color="#AAAAAA" />
-              <Text style={styles.emptyText}>لا توجد نشرات متاحة حالياً</Text>
-            </View>
-          )}
-        </ScrollView>
       )}
-    </SafeAreaView>
+      
+      <ScrollView 
+        style={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#2E7D32"]}
+            tintColor="#2E7D32"
+          />
+        }
+      >
+        {bulletins.length > 0 ? (
+          bulletins.map((bulletin) => (
+            <TouchableOpacity
+              key={bulletin.id}
+              style={styles.newsCard}
+              onPress={() => router.push(`/bulletin/bulletin-details?id=${bulletin.id}`)}
+              activeOpacity={0.8}
+            >
+              <Image 
+                source={bulletin.image ? { uri: bulletin.image.startsWith('http') ? bulletin.image : `${SERVER_BASE_URL}${bulletin.image}` } : getFallbackImage(bulletin.id)}
+                style={styles.newsImage}
+                defaultSource={fallbackImages[0]}
+              />
+              <View style={styles.newsContent}>
+                <View style={styles.newsHeader}>
+                  <Text style={styles.newsTitle}>{bulletin.title}</Text>
+                  <View style={styles.dateContainer}>
+                    <Ionicons name="calendar" size={16} color="#2E7D32" />
+                    <Text style={styles.dateText}>
+                      {formatDate(bulletin.date || bulletin.createdAt)}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.newsText} numberOfLines={3} ellipsizeMode="tail">
+                  {bulletin.content}
+                </Text>
+                <Text style={styles.readMoreText}>اقرأ المزيد</Text>
+              </View>
+            </TouchableOpacity>
+          ))
+        ) : (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="newspaper-outline" size={60} color="#AAAAAA" />
+            <Text style={styles.emptyText}>لا توجد نشرات متاحة حالياً</Text>
+          </View>
+        )}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -160,25 +160,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FFFFFF",
   },
-  header: {
-    padding: 20,
-    backgroundColor: "#2E7D32",
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
-  },
-  headerText: {
-    fontSize: 24,
-    color: "#FFFFFF",
-    textAlign: "center",
-    fontFamily: "Tajawal-Bold",
+  hierarchyBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#E8F5E9",
+    paddingVertical: 8,
+    gap: 6,
   },
   hierarchyText: {
-    fontSize: 14,
-    color: "#FFFFFF",
-    textAlign: "center",
-    fontFamily: "Tajawal-Regular",
-    marginTop: 5,
-    opacity: 0.9,
+    fontSize: 13,
+    fontFamily: "Tajawal-Medium",
+    color: "#2E7D32",
   },
   content: {
     flex: 1,
@@ -243,7 +236,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: "left",
   },
-  // Loading state styles
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
@@ -256,7 +248,6 @@ const styles = StyleSheet.create({
     fontFamily: "Tajawal-Regular",
     color: "#666666",
   },
-  // Error state styles
   errorContainer: {
     flex: 1,
     justifyContent: "center",
@@ -277,7 +268,6 @@ const styles = StyleSheet.create({
     color: "#2E7D32",
     textDecorationLine: "underline",
   },
-  // Empty state styles
   emptyContainer: {
     flex: 1,
     justifyContent: "center",
@@ -292,4 +282,4 @@ const styles = StyleSheet.create({
     color: "#666666",
     textAlign: "center",
   },
-}); 
+});

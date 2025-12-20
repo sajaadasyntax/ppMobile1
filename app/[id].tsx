@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { Stack, useLocalSearchParams, useRouter, Redirect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { apiService } from "../services/api";
 import type { Survey, SurveyQuestion } from "../types/survey";
@@ -9,6 +9,22 @@ import type { Survey, SurveyQuestion } from "../types/survey";
 export default function SurveyDetails() {
   const router = useRouter();
   const params = useLocalSearchParams();
+
+  // List of feature route names that should NOT be handled by this dynamic route
+  const featureRoutes = [
+    'surveys', 'public-surveys', 'member-surveys',
+    'bulletin', 'chat', 'subscriptions', 'voting',
+    'submit-report', 'my-reports', 'archive', 'notifications',
+    'profile', 'help', 'login', 'home'
+  ];
+
+  const routeId = params.id as string;
+
+  // If this is a feature route name, redirect to the correct static route
+  // This prevents [id].tsx from intercepting feature routes
+  if (routeId && featureRoutes.includes(routeId)) {
+    return <Redirect href={`/${routeId}` as any} />;
+  }
 
   // Expect params: id, survey (stringified)
   const survey: Survey | null = useMemo(() => {

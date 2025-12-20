@@ -1,5 +1,4 @@
-﻿import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, RefreshControl } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, RefreshControl } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useState, useEffect, useContext } from "react";
@@ -130,14 +129,7 @@ export default function ElectoralVoting() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-        <Text style={styles.headerText}>التصويت الانتخابي</Text>
-        <View style={styles.placeholderButton} />
-      </View>
+    <View style={styles.container}>
       {user && (<View style={styles.hierarchyBanner}><Ionicons name="location-outline" size={16} color="#2E7D32" /><Text style={styles.hierarchyText}>{getUserScopeDescription(user)}</Text></View>)}
       {loading && !refreshing ? (
         <View style={styles.loadingContainer}><ActivityIndicator size="large" color="#2E7D32" /><Text style={styles.loadingText}>جاري تحميل الانتخابات...</Text></View>
@@ -189,16 +181,12 @@ export default function ElectoralVoting() {
           ); })}
         </ScrollView>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FFFFFF" },
-  header: { padding: 20, backgroundColor: "#2E7D32", borderBottomLeftRadius: 20, borderBottomRightRadius: 20, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  backButton: { width: 40 },
-  placeholderButton: { width: 40 },
-  headerText: { fontSize: 20, color: "#FFFFFF", textAlign: "center", fontFamily: "Tajawal-Bold", flex: 1 },
   hierarchyBanner: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#E8F5E9", paddingVertical: 8, gap: 6 },
   hierarchyText: { fontSize: 13, fontFamily: "Tajawal-Medium", color: "#2E7D32" },
   content: { flex: 1, padding: 20 },

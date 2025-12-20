@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useContext } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Stack, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { apiService } from "../../../services/api";
 import { AuthContext } from "../../../context/AuthContext";
@@ -100,36 +99,18 @@ export default function MemberSurveys() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <Stack.Screen 
-          options={{
-            headerTitle: "استبيانات الأعضاء",
-            headerTitleStyle: {
-              fontFamily: "Tajawal-Bold",
-            },
-            headerTitleAlign: "center",
-          }}
-        />
+      <View style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#2E7D32" />
           <Text style={styles.loadingText}>جاري تحميل الاستبيانات...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   if (error) {
     return (
-      <SafeAreaView style={styles.container}>
-        <Stack.Screen 
-          options={{
-            headerTitle: "استبيانات الأعضاء",
-            headerTitleStyle: {
-              fontFamily: "Tajawal-Bold",
-            },
-            headerTitleAlign: "center",
-          }}
-        />
+      <View style={styles.container}>
         <View style={styles.centeredContent}>
           <Ionicons name="alert-circle-outline" size={48} color="#e53e3e" />
           <Text style={styles.errorText}>{error}</Text>
@@ -147,21 +128,12 @@ export default function MemberSurveys() {
             <Text style={styles.retryButtonText}>إعادة المحاولة</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Stack.Screen 
-        options={{
-          headerTitle: "استبيانات الأعضاء",
-          headerTitleStyle: {
-            fontFamily: "Tajawal-Bold",
-          },
-          headerTitleAlign: "center",
-        }}
-      />
+    <View style={styles.container}>
       <ScrollView
         style={styles.content}
         contentContainerStyle={styles.contentContainer}
@@ -200,7 +172,7 @@ export default function MemberSurveys() {
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
