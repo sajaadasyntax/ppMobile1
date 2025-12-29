@@ -9,7 +9,7 @@ export const getHierarchyLevelName = (adminLevel: AdminLevel): string => {
     [AdminLevel.LOCALITY]: 'المحلية',
     [AdminLevel.ADMIN_UNIT]: 'الوحدة الإدارية',
     [AdminLevel.DISTRICT]: 'الحي',
-    [AdminLevel.USER]: 'مستخدم',
+    [AdminLevel.USER]: 'عضو',
     [AdminLevel.ADMIN]: 'مدير النظام',
     [AdminLevel.NATIONAL_LEVEL]: 'المستوى القومي',
     [AdminLevel.EXPATRIATE_GENERAL]: 'المغتربين - عام',

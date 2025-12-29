@@ -104,8 +104,12 @@ export default function ChatScreen() {
 
   const renderChatRoom = ({ item }: { item: ChatRoom }) => {
     const lastMessage = item.messages && item.messages.length > 0 ? item.messages[0] : null;
+    const isMyMessage = lastMessage && user && (lastMessage.sender?.id === user.id);
+    const senderName = isMyMessage 
+      ? "أنت"
+      : (lastMessage?.sender?.memberDetails?.fullName || "عضو");
     const lastMessageText = lastMessage 
-      ? `${lastMessage.sender?.memberDetails?.fullName || "مستخدم"}: ${lastMessage.text}`
+      ? `${senderName}: ${lastMessage.text}`
       : "لا توجد رسائل بعد";
 
     return (

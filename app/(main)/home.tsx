@@ -131,7 +131,8 @@ export default function Home() {
     userProfile?.memberDetails?.fullName ||
     [userProfile?.profile?.firstName, userProfile?.profile?.lastName].filter(Boolean).join(" ") ||
     userProfile?.name ||
-    "المستخدم";
+    userProfile?.email ||
+    "عضو";
 
   const displayPhone = 
     userProfile?.memberDetails?.mobile ||

@@ -112,7 +112,7 @@ export default function Profile() {
     userProfile?.memberDetails?.fullName?.trim() ||
     [userProfile?.profile?.firstName, userProfile?.profile?.lastName].filter(Boolean).join(" ") ||
     userProfile?.email ||
-    "المستخدم";
+    "عضو";
 
   const displayMobile =
     userProfile?.mobileNumber ||

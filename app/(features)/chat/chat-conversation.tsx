@@ -306,7 +306,9 @@ export default function ChatConversationScreen() {
 
   const renderMessage = ({ item, index }: { item: Message; index: number }) => {
     const isMine = isMyMessage(item);
-    const senderName = item.sender?.memberDetails?.fullName || "مستخدم";
+    const senderName = isMine 
+      ? "أنت"
+      : (item.sender?.memberDetails?.fullName || "عضو");
     const isVoiceMessage = item.messageType === 'VOICE' && item.mediaUrl;
     
     // In inverted list, we check the next item (index + 1) for date separator
