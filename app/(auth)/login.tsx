@@ -191,7 +191,29 @@ const Login: React.FC = () => {
             {isLoading ? "جاري تسجيل الدخول..." : "دخول"}
           </Text>
         </TouchableOpacity>
-        {/* Signup removed - users register through admin panel */}
+        
+        {/* Signup link */}
+        <TouchableOpacity
+          style={{
+            padding: Spacing,
+            marginTop: Spacing,
+          }}
+          onPress={() => router.push('/signup')}
+        >
+          <Text
+            style={{
+              fontFamily: Font["Tajawal-Medium"],
+              color: Colors.text,
+              textAlign: "center",
+              fontSize: FontSize.medium,
+            }}
+          >
+            ليس لديك حساب؟{' '}
+            <Text style={{ color: Colors.primary, fontFamily: Font["Tajawal-Bold"] }}>
+              سجل الآن
+            </Text>
+          </Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );

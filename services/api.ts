@@ -71,6 +71,58 @@ export const apiService = {
     }
   },
 
+  // Public hierarchy for signup (no auth required)
+  getPublicHierarchy: async () => {
+    try {
+      const response = await api.get('/public/hierarchy');
+      return response.data.data || response.data;
+    } catch (error: any) {
+      console.error('Public hierarchy fetch error:', error.response?.data || error.message);
+      throw new Error(error.response?.data?.error || 'فشل جلب التسلسل الهرمي');
+    }
+  },
+
+  // Public expatriate hierarchy for signup (no auth required)
+  getPublicExpatriateHierarchy: async () => {
+    try {
+      const response = await api.get('/public/expatriate-hierarchy');
+      return response.data.data || response.data;
+    } catch (error: any) {
+      console.error('Public expatriate hierarchy fetch error:', error.response?.data || error.message);
+      throw new Error(error.response?.data?.error || 'فشل جلب تسلسل المغتربين');
+    }
+  },
+
+  // Public signup for new members
+  publicSignup: async (signupData: {
+    personalInfo: {
+      fullName: string;
+      nationalId: string;
+      gender?: string;
+      birthDate?: string;
+    };
+    residenceInfo: {
+      mobile: string;
+      email: string;
+      neighborhood?: string;
+    };
+    hierarchyInfo: {
+      hierarchyType: 'GEOGRAPHIC' | 'EXPATRIATE';
+      districtId?: string;
+      expatriateDistrictId?: string;
+    };
+    password: string;
+    publicSignup: boolean;
+  }) => {
+    try {
+      const response = await api.post('/public/signup-member', signupData);
+      return response.data;
+    } catch (error: any) {
+      console.error('Public signup error:', error.response?.data || error.message);
+      throw new Error(error.response?.data?.error || 'فشل التسجيل');
+    }
+  },
+
   logout: async () => {
     try {
       const response = await api.post('/auth/logout');
