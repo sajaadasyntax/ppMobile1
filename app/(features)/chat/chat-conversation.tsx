@@ -9,12 +9,15 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from "react-native";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { apiService } from "../../../services/api";
 import { AuthContext } from "../../../context/AuthContext";
 import { socketService } from "../../../services/socketService";
+import { validateFileBeforeUpload } from "../../../utils/validation";
+import * as FileSystem from "expo-file-system";
 import VoiceRecorder from "../../../components/VoiceRecorder";
 import VoicePlayer from "../../../components/VoicePlayer";
 
@@ -152,6 +155,18 @@ export default function ChatConversationScreen() {
         
         // Subscribe to new messages
         socketUnsubscribeRef.current = socketService.onMessage(roomId, handleNewMessage);
+
+        // Listen for room_removed: admin removed this user from the room
+        const unsubRoomRemoved = socketService.onRoomRemoved((data) => {
+          if (data.roomId === roomId && isMounted) {
+            Alert.alert('تمت إزالتك', data.reason || 'تمت إزالتك من غرفة المحادثة', [
+              { text: 'حسناً', onPress: () => router.back() },
+            ]);
+          }
+        });
+        // Chain cleanup so both unsubs fire
+        const originalUnsub = socketUnsubscribeRef.current;
+        socketUnsubscribeRef.current = () => { originalUnsub?.(); unsubRoomRemoved(); };
         
         console.log('Using Socket.IO for real-time chat');
       } else if (isMounted) {
@@ -228,6 +243,23 @@ export default function ChatConversationScreen() {
     setShowVoiceRecorder(false);
 
     try {
+      // Validate voice file size before uploading (10 MB limit matching backend)
+      const fileInfo = await FileSystem.getInfoAsync(uri);
+      if (fileInfo.exists && 'size' in fileInfo) {
+        const ext = uri.split('.').pop()?.toLowerCase() || 'm4a';
+        const mimeMap: Record<string, string> = { m4a: 'audio/mp4', mp3: 'audio/mpeg', wav: 'audio/wav', webm: 'audio/webm', ogg: 'audio/ogg', aac: 'audio/aac' };
+        const check = validateFileBeforeUpload('voice', {
+          size: fileInfo.size,
+          mimeType: mimeMap[ext] || 'audio/mp4',
+          name: `voice.${ext}`,
+        });
+        if (!check.valid) {
+          Alert.alert('ملف غير مقبول', check.error || 'الملف كبير جداً');
+          setSendingVoice(false);
+          return;
+        }
+      }
+
       console.log('Uploading voice message:', uri, 'duration:', duration);
       
       // Upload the voice message

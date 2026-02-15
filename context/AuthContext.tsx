@@ -1,6 +1,8 @@
 // context/AuthContext.tsx
-import { createContext, useState, useEffect, ReactNode, useContext } from "react";
+import { createContext, useState, useEffect, useRef, ReactNode, useContext } from "react";
 import * as SecureStore from "expo-secure-store";
+import { Alert } from "react-native";
+import socketService from "../services/socketService";
 
 // Hierarchical level enum - matches backend schema.prisma AdminLevel
 export enum AdminLevel {
@@ -108,9 +110,15 @@ export interface User {
 interface AuthContextType {
   token: string | null;
   user: User | null;
+  /** Monotonically-increasing counter that bumps every time the active hierarchy
+   *  changes. Screens that display hierarchy-dependent data should include this
+   *  value in their `useEffect` dependency arrays so they automatically refetch. */
+  hierarchyVersion: number;
   login: (token: string, user: User) => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (user: User) => Promise<void>;
+  /** Persist a new access token (e.g. after hierarchy switch re-issues a JWT) */
+  updateToken: (newToken: string) => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | null>(null);
@@ -122,6 +130,7 @@ interface AuthProviderProps {
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [hierarchyVersion, setHierarchyVersion] = useState(0);
 
   useEffect(() => {
     const loadAuthData = async () => {
@@ -131,19 +140,49 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       if (savedToken && savedUser) {
         setToken(savedToken);
         setUser(JSON.parse(savedUser));
+        // Re-establish socket for real-time notifications + force-logout
+        connectSocket();
       }
     };
     loadAuthData();
+
+    // Cleanup on unmount
+    return () => {
+      forceLogoutUnsub.current?.();
+    };
   }, []);
 
-  const login = async (token: string, user: User) => {
-    setToken(token);
-    setUser(user);
-    await SecureStore.setItemAsync("token", token);
-    await SecureStore.setItemAsync("user", JSON.stringify(user));
+  // Track force-logout unsubscriber so we can clean up on unmount / logout
+  const forceLogoutUnsub = useRef<(() => void) | null>(null);
+
+  const connectSocket = async () => {
+    try {
+      await socketService.connect();
+      // Listen for force-logout (admin suspended this user)
+      forceLogoutUnsub.current = socketService.onForceLogout((data) => {
+        Alert.alert('تم تعليق حسابك', data.reason || 'تواصل مع المسؤول.');
+        logout();
+      });
+    } catch (err) {
+      console.warn('Socket connect error (non-fatal):', err);
+    }
+  };
+
+  const login = async (newToken: string, newUser: User) => {
+    setToken(newToken);
+    setUser(newUser);
+    await SecureStore.setItemAsync("token", newToken);
+    await SecureStore.setItemAsync("user", JSON.stringify(newUser));
+    // Connect socket immediately on login for real-time notifications + force-logout
+    connectSocket();
   };
 
   const logout = async () => {
+    // Clean up socket
+    forceLogoutUnsub.current?.();
+    forceLogoutUnsub.current = null;
+    socketService.disconnect();
+    // Clear auth state
     setToken(null);
     setUser(null);
     await SecureStore.deleteItemAsync("token");
@@ -151,12 +190,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const updateUser = async (updatedUser: User) => {
+    // Detect hierarchy change and bump version so screens refetch
+    if (updatedUser.activeHierarchy !== user?.activeHierarchy) {
+      setHierarchyVersion((v) => v + 1);
+    }
     setUser(updatedUser);
     await SecureStore.setItemAsync("user", JSON.stringify(updatedUser));
   };
 
+  const updateToken = async (newToken: string) => {
+    setToken(newToken);
+    await SecureStore.setItemAsync("token", newToken);
+  };
+
   return (
-    <AuthContext.Provider value={{ token, user, login, logout, updateUser }}>
+    <AuthContext.Provider value={{ token, user, hierarchyVersion, login, logout, updateUser, updateToken }}>
       {children}
     </AuthContext.Provider>
   );

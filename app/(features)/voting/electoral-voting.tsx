@@ -35,7 +35,7 @@ interface VotingItem {
 
 export default function ElectoralVoting() {
   const router = useRouter();
-  const { user } = useContext(AuthContext) || {};
+  const { user, hierarchyVersion } = useContext(AuthContext) || {};
   const [elections, setElections] = useState<VotingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -74,7 +74,7 @@ export default function ElectoralVoting() {
     }
   };
 
-  useEffect(() => { fetchElections(); }, []);
+  useEffect(() => { fetchElections(); }, [hierarchyVersion]);
   const onRefresh = () => { setRefreshing(true); fetchElections(); };
   const getFallbackImage = (id: string) => fallbackImages[parseInt(id.substring(0, 8), 16) % fallbackImages.length] || fallbackImages[0];
   // Filter elections with case-insensitive status matching

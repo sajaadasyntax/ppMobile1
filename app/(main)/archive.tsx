@@ -63,7 +63,7 @@ const getFileIcon = (type: string): string => {
 
 export default function ArchiveScreen() {
   const router = useRouter();
-  const { user, token } = useContext(AuthContext) || {};
+  const { user, token, hierarchyVersion } = useContext(AuthContext) || {};
   const [documents, setDocuments] = useState<ArchiveDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -93,7 +93,7 @@ export default function ArchiveScreen() {
 
   useEffect(() => {
     fetchDocuments(selectedCategory || undefined);
-  }, [token, selectedCategory]);
+  }, [token, selectedCategory, hierarchyVersion]);
 
   const onRefresh = () => {
     setRefreshing(true);

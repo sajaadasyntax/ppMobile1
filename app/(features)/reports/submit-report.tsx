@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,8 @@ import * as DocumentPicker from 'expo-document-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { apiService } from '../../../services/api';
 import { AuthContext } from '../../../context/AuthContext';
+import UploadProgressBar from '../../../components/UploadProgressBar';
+import { validateFileBeforeUpload } from '../../../utils/validation';
 
 export default function SubmitReportScreen() {
   const [title, setTitle] = useState('');
@@ -27,8 +29,21 @@ export default function SubmitReportScreen() {
   const [attachments, setAttachments] = useState<DocumentPicker.DocumentPickerAsset[]>([]);
   const [loading, setLoading] = useState(false);
   const [reportType, setReportType] = useState('general'); // Default report type
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [currentFileInfo, setCurrentFileInfo] = useState('');
+  const cancelUploadRef = useRef<(() => void) | null>(null);
   const { token } = useContext(AuthContext) || {};
   const router = useRouter();
+
+  const handleCancelUpload = useCallback(() => {
+    cancelUploadRef.current?.();
+    setIsUploading(false);
+    setUploadProgress(0);
+    setUploadError(null);
+    setLoading(false);
+  }, []);
 
   const pickDocument = async () => {
     try {
@@ -40,7 +55,28 @@ export default function SubmitReportScreen() {
       });
       
       if (!result.canceled) {
-        setAttachments([...attachments, ...result.assets]);
+        // Validate each picked file against backend limits before adding
+        const validAssets: DocumentPicker.DocumentPickerAsset[] = [];
+        for (const asset of result.assets) {
+          const check = validateFileBeforeUpload('report', {
+            size: asset.size ?? 0,
+            mimeType: asset.mimeType ?? undefined,
+            name: asset.name ?? undefined,
+          });
+          if (!check.valid) {
+            Alert.alert('ملف غير مقبول', check.error || 'الملف لا يستوفي الشروط');
+            continue;
+          }
+          validAssets.push(asset);
+        }
+        // Enforce max 5 files (matching backend UPLOAD_CATEGORIES.report.maxFiles)
+        const totalAfter = attachments.length + validAssets.length;
+        if (totalAfter > 5) {
+          Alert.alert('حد الملفات', 'الحد الأقصى هو 5 مرفقات لكل تقرير');
+          setAttachments([...attachments, ...validAssets.slice(0, 5 - attachments.length)]);
+        } else {
+          setAttachments([...attachments, ...validAssets]);
+        }
       }
     } catch (err) {
       console.error('Error picking document:', err);
@@ -72,6 +108,7 @@ export default function SubmitReportScreen() {
     }
 
     setLoading(true);
+    setUploadError(null);
     
     try {
       // Prepare report data
@@ -85,10 +122,28 @@ export default function SubmitReportScreen() {
         attachmentName: attachments.length > 0 ? attachments[0].name : undefined
       };
       
-      // Submit report to backend with attachments
-      const response = await apiService.submitReport(reportData, attachments.length > 0 ? attachments : undefined);
-      
-      console.log('Report submitted successfully:', response);
+      // If there are attachments, use the progress-tracked upload
+      if (attachments.length > 0) {
+        setIsUploading(true);
+        setUploadProgress(0);
+
+        const upload = apiService.submitReportWithProgress(
+          reportData,
+          attachments,
+          (p) => {
+            setUploadProgress(p.percent);
+            setCurrentFileInfo(
+              `ملف ${p.fileIndex + 1} من ${p.totalFiles}`
+            );
+          },
+        );
+        cancelUploadRef.current = upload.cancel;
+        await upload.promise;
+        setUploadProgress(100);
+      } else {
+        // No attachments — simple JSON post
+        await apiService.submitReport(reportData);
+      }
       
       Alert.alert(
         'تم بنجاح',
@@ -107,12 +162,21 @@ export default function SubmitReportScreen() {
       );
     } catch (error: any) {
       console.error('Error submitting report:', error);
-      Alert.alert(
-        'خطأ', 
-        error.message || 'حدث خطأ أثناء إرسال التقرير. يرجى المحاولة مرة أخرى.'
-      );
+      if (error.message?.includes('إلغاء')) {
+        // User cancelled — do nothing
+      } else {
+        setUploadError(error.message || 'فشل رفع الملف. يرجى المحاولة مرة أخرى');
+        Alert.alert(
+          'خطأ', 
+          error.message || 'حدث خطأ أثناء إرسال التقرير. يرجى المحاولة مرة أخرى.'
+        );
+      }
     } finally {
       setLoading(false);
+      setTimeout(() => {
+        setIsUploading(false);
+        setUploadProgress(0);
+      }, 1500);
     }
   };
 
@@ -217,10 +281,20 @@ export default function SubmitReportScreen() {
           </View>
         )}
 
+        {/* Upload progress bar */}
+        <UploadProgressBar
+          visible={isUploading}
+          progress={uploadProgress}
+          fileName={currentFileInfo || attachments[0]?.name}
+          onCancel={handleCancelUpload}
+          onRetry={() => submitReport()}
+          error={uploadError}
+        />
+
         <TouchableOpacity 
-          style={styles.submitButton} 
+          style={[styles.submitButton, isUploading && { opacity: 0.6 }]} 
           onPress={submitReport}
-          disabled={loading}
+          disabled={loading || isUploading}
         >
           {loading ? (
             <ActivityIndicator color="#fff" />

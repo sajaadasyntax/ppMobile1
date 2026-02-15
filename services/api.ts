@@ -63,7 +63,9 @@ export const apiService = {
 
   register: async (userData: { name: string; email: string; password: string; phone: string }) => {
     try {
-      const response = await api.post('/auth/register', userData);
+      // Normalise "phone" → "mobileNumber" to match backend expectation
+      const { phone, ...rest } = userData;
+      const response = await api.post('/auth/register', { ...rest, mobileNumber: phone });
       return response.data;
     } catch (error: any) {
       console.error('Register error:', error.response?.data || error.message);
@@ -295,25 +297,58 @@ export const apiService = {
     }
   },
 
+  /**
+   * Upload payment receipt using the presigned-URL flow.
+   * Returns { cancel, promise } for progress tracking from uploadManager.
+   * For backward compatibility, also accepts a simple call that returns a promise.
+   */
   uploadPaymentReceipt: async (subscriptionId: string, imageUri: string) => {
     try {
-      const formData = new FormData();
-      formData.append('receipt', {
-        uri: imageUri,
-        type: 'image/jpeg',
-        name: 'receipt.jpg',
-      } as any);
+      // Use the new presigned upload flow
+      const { uploadFile: uploadFileFlow } = require('./uploadManager');
+      const fileName = `receipt-${subscriptionId}.jpg`;
+      const { promise } = uploadFileFlow(imageUri, fileName, 0, 'image/jpeg', 'receipt');
+      const uploadResult = await promise;
 
-      const response = await api.post(`/subscriptions/${subscriptionId}/receipt`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+      // Link the uploaded file to the subscription
+      const response = await api.post(`/subscriptions/${subscriptionId}/receipt-link`, {
+        filePath: uploadResult.file.url,
+        fileId: uploadResult.file.id,
       });
       return response.data;
-    } catch (error: any) {
-      console.error('Receipt upload error:', error.response?.data || error.message);
-      throw new Error(error.response?.data?.error || 'فشل رفع الإيصال');
+    } catch (linkError: any) {
+      // Fallback: try the legacy multipart approach
+      try {
+        const formData = new FormData();
+        formData.append('receipt', {
+          uri: imageUri,
+          type: 'image/jpeg',
+          name: 'receipt.jpg',
+        } as any);
+
+        const response = await api.post(`/subscriptions/${subscriptionId}/receipt`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        return response.data;
+      } catch (error: any) {
+        console.error('Receipt upload error:', error.response?.data || error.message);
+        throw new Error(error.response?.data?.error || 'فشل رفع الإيصال');
+      }
     }
+  },
+
+  /**
+   * Upload payment receipt with real-time progress tracking.
+   * Returns { promise, cancel } — call cancel() to abort.
+   */
+  uploadPaymentReceiptWithProgress: (
+    subscriptionId: string,
+    imageUri: string,
+    onProgress?: (p: { loaded: number; total: number; percent: number }) => void,
+  ) => {
+    const { uploadFile: uploadFileFlow } = require('./uploadManager');
+    const fileName = `receipt-${subscriptionId}.jpg`;
+    return uploadFileFlow(imageUri, fileName, 0, 'image/jpeg', 'receipt', { onProgress });
   },
 
   // Hierarchy - National Levels
@@ -449,6 +484,39 @@ export const apiService = {
     }
   },
 
+  /**
+   * Upload voice message with progress tracking.
+   * Returns { promise, cancel }.
+   */
+  uploadVoiceMessageWithProgress: (
+    roomId: string,
+    audioUri: string,
+    duration: number,
+    onProgress?: (p: { loaded: number; total: number; percent: number }) => void,
+  ) => {
+    const { uploadFile: uploadFileFlow } = require('./uploadManager');
+    const fileExtension = audioUri.split('.').pop()?.toLowerCase() || 'm4a';
+    const mimeType = fileExtension === 'wav' ? 'audio/wav' : 
+                     fileExtension === 'mp3' ? 'audio/mpeg' :
+                     fileExtension === 'webm' ? 'audio/webm' :
+                     'audio/m4a';
+    const fileName = `voice-${roomId}.${fileExtension}`;
+
+    const inner = uploadFileFlow(audioUri, fileName, 0, mimeType, 'voice', { onProgress });
+
+    // After file upload succeeds, link it to the chat room
+    const wrappedPromise = inner.promise.then(async (result: any) => {
+      const response = await api.post(`/chat/chatrooms/${roomId}/messages`, {
+        messageType: 'VOICE',
+        mediaUrl: result.file.url,
+        duration: Math.round(duration),
+      });
+      return response.data;
+    });
+
+    return { promise: wrappedPromise, cancel: inner.cancel };
+  },
+
   // ==================== Hierarchy-aware Content ====================
   
   // Get public surveys (hierarchy-filtered)
@@ -546,6 +614,68 @@ export const apiService = {
       console.error('Report submission error:', error.response?.data || error.message);
       throw new Error(error.response?.data?.error || 'فشل إرسال التقرير');
     }
+  },
+
+  /**
+   * Submit report with progress tracking for attachments.
+   * Uploads each attachment individually with progress, then submits the report.
+   * Returns { promise, cancel }.
+   */
+  submitReportWithProgress: (
+    reportData: any,
+    attachments: any[] | undefined,
+    onProgress?: (p: { loaded: number; total: number; percent: number; fileIndex: number; totalFiles: number }) => void,
+  ) => {
+    const { uploadFile: uploadFileFlow } = require('./uploadManager');
+    let cancelled = false;
+    let currentCancel: (() => void) | null = null;
+
+    const cancel = () => {
+      cancelled = true;
+      currentCancel?.();
+    };
+
+    const promise = (async () => {
+      const uploadedPaths: string[] = [];
+
+      // Upload each attachment individually
+      if (attachments && attachments.length > 0) {
+        for (let i = 0; i < attachments.length; i++) {
+          if (cancelled) throw new Error('تم إلغاء الرفع');
+
+          const file = attachments[i];
+          const upload = uploadFileFlow(
+            file.uri,
+            file.name || `attachment_${i}`,
+            file.size || 0,
+            file.mimeType || 'application/octet-stream',
+            'report',
+            {
+              onProgress: (p: any) => {
+                onProgress?.({
+                  ...p,
+                  fileIndex: i,
+                  totalFiles: attachments.length,
+                });
+              },
+            },
+          );
+          currentCancel = upload.cancel;
+          const result = await upload.promise;
+          uploadedPaths.push(result.file.url);
+        }
+      }
+
+      // Submit report with uploaded file paths
+      const response = await api.post('/content/reports', {
+        ...reportData,
+        attachmentPaths: uploadedPaths,
+        date: reportData.date || new Date().toISOString(),
+      });
+      return response.data;
+    })();
+
+    return { promise, cancel };
   },
 
   // Get user's own reports

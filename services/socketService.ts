@@ -7,13 +7,26 @@ import * as SecureStore from 'expo-secure-store';
 const SERVER_BASE_URL = 'https://ppsudan.org'; // For production
 
 type MessageHandler = (message: any) => void;
+type NotificationHandler = (notification: {
+  id?: string;
+  type: string;
+  title: string;
+  message: string;
+  data?: Record<string, any>;
+  createdAt?: string;
+}) => void;
 type ErrorHandler = (error: { message: string }) => void;
 type ConnectHandler = () => void;
 type DisconnectHandler = (reason: string) => void;
 
+type RoomRemovedHandler = (data: { roomId: string; reason: string }) => void;
+
 class SocketService {
   private socket: Socket | null = null;
   private messageHandlers: Map<string, Set<MessageHandler>> = new Map();
+  private notificationHandlers: Set<NotificationHandler> = new Set();
+  private forceLogoutHandlers: Set<(data: { reason: string; code: string }) => void> = new Set();
+  private roomRemovedHandlers: Set<RoomRemovedHandler> = new Set();
   private errorHandlers: Set<ErrorHandler> = new Set();
   private connectHandlers: Set<ConnectHandler> = new Set();
   private disconnectHandlers: Set<DisconnectHandler> = new Set();
@@ -93,6 +106,24 @@ class SocketService {
       const handlers = this.messageHandlers.get(message.roomId);
       handlers?.forEach(handler => handler(message));
     });
+
+    // Real-time notification delivery from the server
+    this.socket.on('notification', (notification: any) => {
+      console.log('Received notification:', notification.type, notification.title);
+      this.notificationHandlers.forEach(handler => handler(notification));
+    });
+
+    // Force-logout: admin suspended the account
+    this.socket.on('force_logout', (data: any) => {
+      console.warn('Force logout received:', data.reason);
+      this.forceLogoutHandlers.forEach(handler => handler(data));
+    });
+
+    // Room removed: admin removed this user from a chat room
+    this.socket.on('room_removed', (data: any) => {
+      console.warn('Room removed received:', data.roomId, data.reason);
+      this.roomRemovedHandlers.forEach(handler => handler(data));
+    });
   }
 
   disconnect(): void {
@@ -165,6 +196,30 @@ class SocketService {
     // Return unsubscribe function
     return () => {
       this.messageHandlers.get(roomId)?.delete(handler);
+    };
+  }
+
+  // Register a handler for force-logout events (admin suspended the user)
+  onForceLogout(handler: (data: { reason: string; code: string }) => void): () => void {
+    this.forceLogoutHandlers.add(handler);
+    return () => {
+      this.forceLogoutHandlers.delete(handler);
+    };
+  }
+
+  // Register a handler for when the user is removed from a chat room
+  onRoomRemoved(handler: RoomRemovedHandler): () => void {
+    this.roomRemovedHandlers.add(handler);
+    return () => {
+      this.roomRemovedHandlers.delete(handler);
+    };
+  }
+
+  // Register a handler for real-time notifications (hierarchy changes, status changes, etc.)
+  onNotification(handler: NotificationHandler): () => void {
+    this.notificationHandlers.add(handler);
+    return () => {
+      this.notificationHandlers.delete(handler);
     };
   }
 

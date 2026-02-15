@@ -49,7 +49,7 @@ interface ChatRoom {
 
 export default function ChatScreen() {
   const router = useRouter();
-  const { user, token } = useContext(AuthContext) || {};
+  const { user, token, hierarchyVersion } = useContext(AuthContext) || {};
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -78,7 +78,7 @@ export default function ChatScreen() {
 
   useEffect(() => {
     fetchChatRooms();
-  }, [token]);
+  }, [token, hierarchyVersion]);
 
   const onRefresh = () => {
     setRefreshing(true);

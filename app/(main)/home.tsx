@@ -45,7 +45,7 @@ interface UserProfile {
 }
 
 export default function Home() {
-  const { token, user, logout } = useContext(AuthContext) || {};
+  const { token, user, logout, hierarchyVersion } = useContext(AuthContext) || {};
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +73,7 @@ export default function Home() {
     }
 
     fetchUserData();
-  }, [token, router]);
+  }, [token, router, hierarchyVersion]);
 
   const handleLogout = async () => {
     if (logout) {

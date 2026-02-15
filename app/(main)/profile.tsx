@@ -62,28 +62,26 @@ export default function Profile() {
   const [error, setError] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
-  useEffect(() => {
-    async function fetchData() {
-      if (!token) {
-        router.replace("/login");
-        return;
-      }
-
-      try {
-        setLoading(true);
-        // Fetch user profile
-        const profileData = await apiService.getProfile();
-        setUserProfile(profileData);
-        console.log("User profile loaded:", profileData);
-      } catch (err: any) {
-        console.error("Error fetching profile data:", err);
-        setError(err.message || "Failed to load profile data");
-      } finally {
-        setLoading(false);
-      }
+  const fetchProfileData = async () => {
+    if (!token) {
+      router.replace("/login");
+      return;
     }
+    try {
+      setLoading(true);
+      const profileData = await apiService.getProfile();
+      setUserProfile(profileData);
+      console.log("User profile loaded:", profileData);
+    } catch (err: any) {
+      console.error("Error fetching profile data:", err);
+      setError(err.message || "Failed to load profile data");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    fetchData();
+  useEffect(() => {
+    fetchProfileData();
   }, [token, router]);
 
   // Show loading state
@@ -122,7 +120,8 @@ export default function Profile() {
 
   const displayEmail = userProfile?.email || "غير متوفر";
 
-  const statusText = userProfile?.profile?.status === 'disabled' ? 'غير مفعّل' : 'فعّال';
+  // Use canonical status labels (must match Admin panel and Backend)
+  const statusText = userProfile?.profile?.status === 'disabled' ? 'معطل' : 'نشط';
 
   const adminLvl = (userProfile?.adminLevel || user?.adminLevel) as any;
 
@@ -155,6 +154,18 @@ export default function Profile() {
             />
           </View>
           <Text style={styles.name}>{displayName}</Text>
+          {/* Compact hierarchy pill in the header */}
+          <View style={styles.headerPillWrap}>
+            <HierarchySelector
+              compact={true}
+              showMemberships={true}
+              onHierarchyChange={(hierarchy) => {
+                console.log('Hierarchy switched via pill to:', hierarchy);
+                // Re-fetch profile to reflect new hierarchy context
+                fetchProfileData();
+              }}
+            />
+          </View>
         </View>
 
         {/* Stats section removed */}
@@ -250,6 +261,10 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontFamily: "Tajawal-Bold",
     marginBottom: 5,
+  },
+  headerPillWrap: {
+    marginTop: 10,
+    alignItems: "center",
   },
   email: {
     fontSize: 16,

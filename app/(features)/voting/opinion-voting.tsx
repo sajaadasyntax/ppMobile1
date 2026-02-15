@@ -1,8 +1,9 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, RefreshControl } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
 import { apiService } from "../../../services/api";
+import { AuthContext } from "../../../context/AuthContext";
 
 // Fallback images for when the server image is not available
 const fallbackImages = [
@@ -35,6 +36,7 @@ interface VotingItem {
 
 export default function OpinionVoting() {
   const router = useRouter();
+  const { hierarchyVersion } = useContext(AuthContext) || {};
   const [votingItems, setVotingItems] = useState<VotingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -79,10 +81,10 @@ export default function OpinionVoting() {
     }
   };
 
-  // Fetch voting items on component mount
+  // Fetch voting items on component mount and when hierarchy changes
   useEffect(() => {
     fetchVotingItems();
-  }, []);
+  }, [hierarchyVersion]);
   
   // Log when selectedOptions changes
   useEffect(() => {
@@ -101,14 +103,16 @@ export default function OpinionVoting() {
     return fallbackImages[index] || fallbackImages[0];
   };
 
-  // Filter active and previous polls
-  const activePolls = votingItems.filter(
-    item => item.status === "active" || item.status === "upcoming"
-  );
+  // Filter active and previous polls (case-insensitive, matching electoral-voting.tsx)
+  const activePolls = votingItems.filter(item => {
+    const status = item.status?.toLowerCase();
+    return status === "active" || status === "upcoming";
+  });
   
-  const previousPolls = votingItems.filter(
-    item => item.status === "closed"
-  );
+  const previousPolls = votingItems.filter(item => {
+    const status = item.status?.toLowerCase();
+    return status === "closed";
+  });
 
   const selectOption = (pollId: string, optionId: string) => {
     console.log(`Selecting option ${optionId} for poll ${pollId}`);

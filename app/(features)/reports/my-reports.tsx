@@ -46,7 +46,7 @@ const reportStatusLabels: Record<string, { label: string; color: string; bgColor
 
 export default function MyReportsScreen() {
   const router = useRouter();
-  const { user, token } = useContext(AuthContext) || {};
+  const { user, token, hierarchyVersion } = useContext(AuthContext) || {};
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -75,7 +75,7 @@ export default function MyReportsScreen() {
 
   useEffect(() => {
     fetchReports();
-  }, [token]);
+  }, [token, hierarchyVersion]);
 
   const onRefresh = () => {
     setRefreshing(true);

@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { apiService } from "../../services/api";
 import { AuthContext } from "../../context/AuthContext";
 import { getUserScopeDescription } from "../../utils/hierarchyUtils";
+import socketService from "../../services/socketService";
 
 interface Notification {
   id: string;
@@ -41,7 +42,7 @@ const notificationTypeConfig: Record<string, { icon: string; color: string }> = 
 
 export default function NotificationsScreen() {
   const router = useRouter();
-  const { user, token } = useContext(AuthContext) || {};
+  const { user, token, hierarchyVersion } = useContext(AuthContext) || {};
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -73,7 +74,24 @@ export default function NotificationsScreen() {
 
   useEffect(() => {
     fetchNotifications();
-  }, [token]);
+  }, [token, hierarchyVersion]);
+
+  // Real-time: prepend new notifications as they arrive via WebSocket
+  useEffect(() => {
+    const unsub = socketService.onNotification((notif) => {
+      const newNotification: Notification = {
+        id: notif.id || `rt-${Date.now()}`,
+        title: notif.title,
+        message: notif.message,
+        type: notif.type || 'system',
+        read: false,
+        createdAt: notif.createdAt || new Date().toISOString(),
+        data: notif.data,
+      };
+      setNotifications((prev) => [newNotification, ...prev]);
+    });
+    return unsub;
+  }, []);
 
   const onRefresh = () => {
     setRefreshing(true);

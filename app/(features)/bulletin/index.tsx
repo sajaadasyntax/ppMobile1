@@ -27,7 +27,7 @@ interface Bulletin {
 
 export default function BulletinScreen() {
   const router = useRouter();
-  const { user } = useContext(AuthContext) || {};
+  const { user, hierarchyVersion } = useContext(AuthContext) || {};
   const [bulletins, setBulletins] = useState<Bulletin[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,10 +50,10 @@ export default function BulletinScreen() {
     }
   };
 
-  // Fetch bulletins on component mount
+  // Fetch bulletins on component mount and when hierarchy changes
   useEffect(() => {
     fetchBulletins();
-  }, []);
+  }, [hierarchyVersion]);
 
   // Handle pull-to-refresh
   const onRefresh = () => {

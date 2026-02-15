@@ -11,7 +11,7 @@ export default function MemberSurveys() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const { token } = useContext(AuthContext) || {};
+  const { token, hierarchyVersion } = useContext(AuthContext) || {};
   const router = useRouter();
 
   useEffect(() => {
@@ -38,7 +38,7 @@ export default function MemberSurveys() {
     }
 
     fetchSurveys();
-  }, [token, router]);
+  }, [token, router, hierarchyVersion]);
 
   const onRefresh = () => {
     setRefreshing(true);

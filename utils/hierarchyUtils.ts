@@ -1,22 +1,42 @@
 // utils/hierarchyUtils.ts
 import { AdminLevel, User, ActiveHierarchy } from '../context/AuthContext';
 
+// ─── Canonical UI labels (must match Backend & Admin) ────────────────
+// These are the SINGLE SOURCE OF TRUTH.  If a label changes here it must
+// be changed in ppBackend/src/constants/terminology.ts and ppAdmin too.
+export const ADMIN_LEVEL_LABELS: Record<string, string> = {
+  ADMIN:                     'مدير النظام',
+  GENERAL_SECRETARIAT:       'الأمانة العامة',
+  NATIONAL_LEVEL:            'المستوى القومي',
+  REGION:                    'الولاية',
+  LOCALITY:                  'المحلية',
+  ADMIN_UNIT:                'الوحدة الإدارية',
+  DISTRICT:                  'الحي',
+  USER:                      'عضو',
+  EXPATRIATE_GENERAL:        'المغتربين - عام',
+  EXPATRIATE_NATIONAL_LEVEL: 'المغتربين - المستوى القومي',
+  EXPATRIATE_REGION:         'المغتربين - الإقليم',
+  EXPATRIATE_LOCALITY:       'المغتربين - المحلية',
+  EXPATRIATE_ADMIN_UNIT:     'المغتربين - الوحدة الإدارية',
+  EXPATRIATE_DISTRICT:       'المغتربين - الحي',
+};
+
+export const HIERARCHY_TYPE_LABELS: Record<string, string> = {
+  ORIGINAL:   'جغرافي',
+  EXPATRIATE: 'المغتربين',
+  SECTOR:     'القطاع',
+};
+
+export const STATUS_LABELS: Record<string, string> = {
+  active:    'نشط',
+  disabled:  'معطل',
+  suspended: 'موقوف',
+  pending:   'قيد المراجعة',
+};
+
 // Helper function to get user's hierarchy level display name in Arabic
 export const getHierarchyLevelName = (adminLevel: AdminLevel): string => {
-  const levelNames: Record<AdminLevel, string> = {
-    [AdminLevel.GENERAL_SECRETARIAT]: 'الأمانة العامة',
-    [AdminLevel.REGION]: 'الولاية',
-    [AdminLevel.LOCALITY]: 'المحلية',
-    [AdminLevel.ADMIN_UNIT]: 'الوحدة الإدارية',
-    [AdminLevel.DISTRICT]: 'الحي',
-    [AdminLevel.USER]: 'عضو',
-    [AdminLevel.ADMIN]: 'مدير النظام',
-    [AdminLevel.NATIONAL_LEVEL]: 'المستوى القومي',
-    [AdminLevel.EXPATRIATE_GENERAL]: 'المغتربين - عام',
-    [AdminLevel.EXPATRIATE_REGION]: 'المغتربين - الإقليم'
-  };
-  
-  return levelNames[adminLevel] || 'غير محدد';
+  return ADMIN_LEVEL_LABELS[adminLevel as string] || 'غير محدد';
 };
 
 // Helper function to get user's full hierarchy path based on active hierarchy

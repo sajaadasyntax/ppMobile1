@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext } from "react";
+import React, { useEffect, useState, useContext, useRef, useCallback } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Alert, Image } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -6,6 +6,8 @@ import * as ImagePicker from "expo-image-picker";
 import { apiService } from "../../../services/api";
 import { AuthContext } from "../../../context/AuthContext";
 import { getUserScopeDescription } from "../../../utils/hierarchyUtils";
+import UploadProgressBar from "../../../components/UploadProgressBar";
+import { validateFileBeforeUpload } from "../../../utils/validation";
 
 // Backend returns flattened subscription data (not nested plan object)
 interface UserSubscription {
@@ -67,7 +69,7 @@ const getPaymentStatusLabel = (status: string): { label: string; color: string }
 
 export default function SubscriptionsScreen() {
   const router = useRouter();
-  const { user, token } = useContext(AuthContext) || {};
+  const { user, token, hierarchyVersion } = useContext(AuthContext) || {};
   const [activeSubscriptions, setActiveSubscriptions] = useState<UserSubscription[]>([]);
   const [availablePlans, setAvailablePlans] = useState<SubscriptionPlan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -100,7 +102,7 @@ export default function SubscriptionsScreen() {
     }
   };
 
-  useEffect(() => { fetchData(); }, [token]);
+  useEffect(() => { fetchData(); }, [token, hierarchyVersion]);
   const onRefresh = () => { setRefreshing(true); fetchData(); };
 
   const handleSubscribe = async (planId: string) => {
@@ -115,6 +117,19 @@ export default function SubscriptionsScreen() {
       setSubscribing(null);
     }
   };
+
+  // Upload progress state
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadFileName, setUploadFileName] = useState<string>('');
+  const cancelUploadRef = useRef<(() => void) | null>(null);
+
+  const handleCancelUpload = useCallback(() => {
+    cancelUploadRef.current?.();
+    setUploadingReceipt(null);
+    setUploadProgress(0);
+    setUploadError(null);
+  }, []);
 
   const handleUploadReceipt = async (subscriptionId: string) => {
     try {
@@ -134,14 +149,55 @@ export default function SubscriptionsScreen() {
 
       if (result.canceled) return;
 
+      const asset = result.assets[0];
+
+      // Validate file size & type BEFORE uploading (prevents silent backend rejection)
+      const check = validateFileBeforeUpload('receipt', {
+        size: asset.fileSize ?? 0,
+        mimeType: asset.mimeType ?? (asset.type === 'image' ? 'image/jpeg' : undefined),
+        name: asset.fileName ?? undefined,
+      });
+      if (!check.valid) {
+        Alert.alert('ملف غير مقبول', check.error || 'الملف لا يستوفي الشروط');
+        return;
+      }
+
       setUploadingReceipt(subscriptionId);
-      await apiService.uploadPaymentReceipt(subscriptionId, result.assets[0].uri);
+      setUploadProgress(0);
+      setUploadError(null);
+      setUploadFileName(asset.fileName || 'receipt.jpg');
+
+      // Use progress-tracked upload
+      const { uploadFile } = require('../../../services/uploadManager');
+      const upload = uploadFile(
+        asset.uri,
+        asset.fileName || 'receipt.jpg',
+        asset.fileSize || 0,
+        asset.type === 'image' ? 'image/jpeg' : (asset.mimeType || 'image/jpeg'),
+        'receipt',
+        {
+          onProgress: (p: any) => setUploadProgress(p.percent),
+        },
+      );
+      cancelUploadRef.current = upload.cancel;
+
+      await upload.promise;
+      setUploadProgress(100);
       Alert.alert("نجاح", "تم رفع الإيصال بنجاح! سيتم مراجعته قريباً.");
       fetchData();
     } catch (err: any) {
-      Alert.alert("خطأ", err.message || "فشل في رفع الإيصال");
+      if (err.message?.includes('إلغاء')) {
+        // User cancelled — do nothing
+      } else {
+        setUploadError(err.message || 'فشل رفع الإيصال. يرجى المحاولة مرة أخرى');
+      }
     } finally {
-      setUploadingReceipt(null);
+      if (!uploadError) {
+        setTimeout(() => {
+          setUploadingReceipt(null);
+          setUploadProgress(0);
+        }, 1500);
+      }
     }
   };
 
