@@ -351,6 +351,23 @@ export const apiService = {
     return uploadFileFlow(imageUri, fileName, 0, 'image/jpeg', 'receipt', { onProgress });
   },
 
+  /**
+   * Link an already-uploaded receipt file to a subscription record.
+   * Called after uploadManager completes the presigned-URL flow.
+   */
+  linkReceiptToSubscription: async (subscriptionId: string, filePath: string, fileId?: string) => {
+    try {
+      const response = await api.post(`/subscriptions/${subscriptionId}/receipt-link`, {
+        filePath,
+        fileId,
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Receipt link error:', error.response?.data || error.message);
+      throw new Error(error.response?.data?.error || error.response?.data?.message || 'فشل ربط الإيصال بالاشتراك');
+    }
+  },
+
   // Hierarchy - National Levels
   getNationalLevels: async () => {
     try {

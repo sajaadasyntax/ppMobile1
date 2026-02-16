@@ -181,8 +181,12 @@ export default function SubscriptionsScreen() {
       );
       cancelUploadRef.current = upload.cancel;
 
-      await upload.promise;
+      const uploadResult = await upload.promise;
       setUploadProgress(100);
+
+      // Link the uploaded file to the subscription record
+      await apiService.linkReceiptToSubscription(subscriptionId, uploadResult.file.url, uploadResult.file.id);
+
       Alert.alert("نجاح", "تم رفع الإيصال بنجاح! سيتم مراجعته قريباً.");
       fetchData();
     } catch (err: any) {

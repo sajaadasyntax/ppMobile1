@@ -1,11 +1,11 @@
 import { View, Text, ScrollView, StyleSheet, Image, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useState, useContext } from "react";
+import { useEffect, useState, useContext, useCallback, useRef } from "react";
 import { apiService } from "../../services/api";
 import { AuthContext, User } from "../../context/AuthContext";
 import { useRouter } from "expo-router";
-import { getHierarchyLevelName, getUserHierarchyPath, getUserScopeDescription } from "../../utils/hierarchyUtils";
+import { getHierarchyLevelName } from "../../utils/hierarchyUtils";
 import HierarchySelector from "../../components/HierarchySelector";
 
 // Define user profile interface
@@ -61,8 +61,13 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const isMountedRef = useRef(true);
 
-  const fetchProfileData = async () => {
+  useEffect(() => {
+    return () => { isMountedRef.current = false; };
+  }, []);
+
+  const fetchProfileData = useCallback(async () => {
     if (!token) {
       router.replace("/login");
       return;
@@ -70,19 +75,24 @@ export default function Profile() {
     try {
       setLoading(true);
       const profileData = await apiService.getProfile();
-      setUserProfile(profileData);
-      console.log("User profile loaded:", profileData);
+      if (isMountedRef.current) {
+        setUserProfile(profileData);
+      }
     } catch (err: any) {
       console.error("Error fetching profile data:", err);
-      setError(err.message || "Failed to load profile data");
+      if (isMountedRef.current) {
+        setError(err.message || "Failed to load profile data");
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
-  };
+  }, [token]);
 
   useEffect(() => {
     fetchProfileData();
-  }, [token, router]);
+  }, [fetchProfileData]);
 
   // Show loading state
   if (loading) {
@@ -197,7 +207,7 @@ export default function Profile() {
                 <View style={styles.infoRow}>
                   <Ionicons name="business" size={24} color="#2E7D32" />
                   <Text style={styles.infoText}>
-                    المستوى الإداري: {getHierarchyLevelName(adminLvl)}
+                    المستوى الإداري: {adminLvl ? getHierarchyLevelName(adminLvl) : 'غير محدد'}
                   </Text>
                 </View>
                 <View style={styles.infoRow}>

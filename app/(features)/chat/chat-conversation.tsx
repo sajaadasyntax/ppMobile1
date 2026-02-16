@@ -18,7 +18,6 @@ import { apiService } from "../../../services/api";
 import { AuthContext } from "../../../context/AuthContext";
 import { socketService } from "../../../services/socketService";
 import { validateFileBeforeUpload } from "../../../utils/validation";
-import * as FileSystem from "expo-file-system";
 import VoiceRecorder from "../../../components/VoiceRecorder";
 import VoicePlayer from "../../../components/VoicePlayer";
 
@@ -214,22 +213,22 @@ export default function ChatConversationScreen() {
     setSending(true);
 
     try {
-      // If Socket.IO is connected, use it for real-time message delivery
-      // The message will come back via the socket event handler
       if (socketConnected && socketService.isConnected()) {
+        // Use ONLY the socket to send — the backend socket handler persists the
+        // message and broadcasts it to the room.  The broadcast comes back via
+        // handleNewMessage so we do NOT need to touch state here.
         socketService.sendMessage(roomId!, messageText);
-        // Also call API to ensure message is persisted (socket handler will receive it)
-        await apiService.sendChatMessage(roomId!, messageText);
       } else {
-        // Fallback to HTTP API
+        // Fallback to HTTP API when socket is unavailable
         const sentMessage = await apiService.sendChatMessage(roomId!, messageText);
-        // Prepend new message to the beginning (inverted list shows it at bottom)
-        setMessages((prev) => [sentMessage, ...prev]);
+        setMessages((prev) => {
+          if (prev.some(m => m.id === sentMessage.id)) return prev;
+          return [sentMessage, ...prev];
+        });
       }
     } catch (err: any) {
       console.error("Error sending message:", err);
-      setNewMessage(messageText); // Restore message if failed
-      // Show error briefly
+      setNewMessage(messageText);
       setError(err.message || "فشل إرسال الرسالة");
       setTimeout(() => setError(null), 3000);
     } finally {
@@ -245,13 +244,23 @@ export default function ChatConversationScreen() {
     setShowVoiceRecorder(false);
 
     try {
-      // Validate voice file size before uploading (10 MB limit matching backend)
-      const fileInfo = await FileSystem.getInfoAsync(uri);
-      if (fileInfo.exists && 'size' in fileInfo) {
-        const ext = uri.split('.').pop()?.toLowerCase() || 'm4a';
-        const mimeMap: Record<string, string> = { m4a: 'audio/mp4', mp3: 'audio/mpeg', wav: 'audio/wav', webm: 'audio/webm', ogg: 'audio/ogg', aac: 'audio/aac' };
+      // Validate voice file before uploading
+      const ext = uri.split('.').pop()?.toLowerCase() || 'm4a';
+      const mimeMap: Record<string, string> = { m4a: 'audio/mp4', mp3: 'audio/mpeg', wav: 'audio/wav', webm: 'audio/webm', ogg: 'audio/ogg', aac: 'audio/aac' };
+
+      // Get file size via fetch (avoids direct expo-file-system dependency)
+      let fileSize = 0;
+      try {
+        const resp = await fetch(uri);
+        const blob = await resp.blob();
+        fileSize = blob.size;
+      } catch {
+        // If we can't determine size, let the backend validate
+      }
+
+      if (fileSize > 0) {
         const check = validateFileBeforeUpload('voice', {
-          size: fileInfo.size,
+          size: fileSize,
           mimeType: mimeMap[ext] || 'audio/mp4',
           name: `voice.${ext}`,
         });
@@ -459,17 +468,19 @@ export default function ChatConversationScreen() {
 
         {/* Voice Recorder */}
         {showVoiceRecorder && (
-          <VoiceRecorder
-            onRecordingComplete={handleVoiceRecordingComplete}
-            onCancel={handleVoiceRecorderCancel}
-            isRecording={isRecording}
-            setIsRecording={setIsRecording}
-          />
+          <View style={{ paddingBottom: insets.bottom }}>
+            <VoiceRecorder
+              onRecordingComplete={handleVoiceRecordingComplete}
+              onCancel={handleVoiceRecorderCancel}
+              isRecording={isRecording}
+              setIsRecording={setIsRecording}
+            />
+          </View>
         )}
 
         {/* Sending Voice Indicator */}
         {sendingVoice && (
-          <View style={styles.sendingVoiceContainer}>
+          <View style={[styles.sendingVoiceContainer, { paddingBottom: Math.max(16, insets.bottom) }]}>
             <ActivityIndicator size="small" color="#2E7D32" />
             <Text style={styles.sendingVoiceText}>جاري إرسال الرسالة الصوتية...</Text>
           </View>
@@ -477,7 +488,7 @@ export default function ChatConversationScreen() {
 
         {/* Input Area */}
         {!showVoiceRecorder && !sendingVoice && (
-          <View style={styles.inputContainer}>
+          <View style={[styles.inputContainer, { paddingBottom: Math.max(12, insets.bottom) }]}>
             {/* Voice message button */}
             <TouchableOpacity
               style={styles.voiceButton}

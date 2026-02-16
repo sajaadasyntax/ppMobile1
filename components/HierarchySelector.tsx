@@ -140,8 +140,8 @@ const HierarchySelector: React.FC<HierarchySelectorProps> = ({
       }
 
       // Update user in auth context
-      if (response.user) {
-        await updateUser({ ...user!, ...response.user, activeHierarchy: hierarchy });
+      if (response.user && user) {
+        await updateUser({ ...user, ...response.user, activeHierarchy: hierarchy });
       } else if (user) {
         await updateUser({ ...user, activeHierarchy: hierarchy });
       }
@@ -208,12 +208,13 @@ const HierarchySelector: React.FC<HierarchySelectorProps> = ({
     }
   }, [memberships]);
 
-  const hasMembership = (h: ActiveHierarchy) => {
+  const hasMembership = (h: ActiveHierarchy): boolean => {
     if (!memberships) return false;
     switch (h) {
-      case ActiveHierarchy.ORIGINAL: return memberships.hasOriginal;
-      case ActiveHierarchy.EXPATRIATE: return memberships.hasExpatriate;
-      case ActiveHierarchy.SECTOR: return memberships.hasSector;
+      case ActiveHierarchy.ORIGINAL: return !!memberships.hasOriginal;
+      case ActiveHierarchy.EXPATRIATE: return !!memberships.hasExpatriate;
+      case ActiveHierarchy.SECTOR: return !!memberships.hasSector;
+      default: return false;
     }
   };
 
