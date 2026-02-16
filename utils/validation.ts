@@ -131,6 +131,14 @@ export function validateFileBeforeUpload(
 ): { valid: boolean; error?: string } {
   const rules = UPLOAD_LIMITS[category];
 
+  // Empty file check
+  if (!file.size || file.size <= 0) {
+    return {
+      valid: false,
+      error: 'الملف فارغ (0 بايت). يرجى اختيار ملف صالح.',
+    };
+  }
+
   // Size check
   if (file.size > rules.maxSizeBytes) {
     const maxMB = (rules.maxSizeBytes / (1024 * 1024)).toFixed(0);

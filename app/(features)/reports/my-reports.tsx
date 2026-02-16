@@ -204,7 +204,7 @@ export default function MyReportsScreen() {
           </Text>
           <TouchableOpacity
             style={styles.submitButton}
-            onPress={() => router.push("/submit-report")}
+            onPress={() => router.push("/reports/submit-report")}
           >
             <Ionicons name="add" size={20} color="#FFFFFF" />
             <Text style={styles.submitButtonText}>تقديم تقرير جديد</Text>

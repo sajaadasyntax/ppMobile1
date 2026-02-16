@@ -11,6 +11,7 @@ import {
   Platform,
   Alert,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { apiService } from "../../../services/api";
@@ -41,6 +42,7 @@ export default function ChatConversationScreen() {
   const { roomId, title } = useLocalSearchParams<{ roomId: string; title: string }>();
   const router = useRouter();
   const { user, token } = useContext(AuthContext) || {};
+  const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -416,7 +418,7 @@ export default function ChatConversationScreen() {
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+        keyboardVerticalOffset={Platform.OS === "ios" ? (60 + insets.top) : 0}
       >
         {error && (
           <View style={styles.errorBanner}>
