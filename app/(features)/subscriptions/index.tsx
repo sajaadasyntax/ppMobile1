@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext, useRef, useCallback } from "react";
+import React, { useEffect, useState, useContext } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Alert, Image } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -6,7 +6,6 @@ import * as ImagePicker from "expo-image-picker";
 import { apiService } from "../../../services/api";
 import { AuthContext } from "../../../context/AuthContext";
 import { getUserScopeDescription } from "../../../utils/hierarchyUtils";
-import UploadProgressBar from "../../../components/UploadProgressBar";
 import { validateFileBeforeUpload } from "../../../utils/validation";
 
 // Backend returns flattened subscription data (not nested plan object)
@@ -49,11 +48,11 @@ interface SubscriptionPlan {
 
 const getPeriodLabel = (period: string): string => {
   switch (period) {
-    case 'monthly': return 'شهري';
-    case 'quarterly': return 'ربع سنوي';
-    case 'biannual': return 'نصف سنوي';
-    case 'annual': return 'سنوي';
-    case 'one-time': return 'مرة واحدة';
+    case 'monthly': return 'شهرياً';
+    case 'quarterly': return 'كل 3 أشهر';
+    case 'biannual': return 'كل 6 أشهر';
+    case 'annual': return 'سنوياً';
+    case 'one-time': return 'دفعة واحدة';
     default: return period;
   }
 };
@@ -109,7 +108,7 @@ export default function SubscriptionsScreen() {
     try {
       setSubscribing(planId);
       await apiService.createSubscription(planId);
-      Alert.alert("نجاح", "تم الاشتراك بنجاح! يرجى رفع إيصال الدفع.");
+      Alert.alert("نجاح", "تم تسجيل الرسوم! يرجى رفع إيصال الدفع.");
       fetchData();
     } catch (err: any) {
       Alert.alert("خطأ", err.message || "فشل في الاشتراك");
@@ -118,18 +117,8 @@ export default function SubscriptionsScreen() {
     }
   };
 
-  // Upload progress state
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [uploadFileName, setUploadFileName] = useState<string>('');
-  const cancelUploadRef = useRef<(() => void) | null>(null);
-
-  const handleCancelUpload = useCallback(() => {
-    cancelUploadRef.current?.();
-    setUploadingReceipt(null);
-    setUploadProgress(0);
-    setUploadError(null);
-  }, []);
 
   const handleUploadReceipt = async (subscriptionId: string) => {
     try {
@@ -151,7 +140,7 @@ export default function SubscriptionsScreen() {
 
       const asset = result.assets[0];
 
-      // Validate file size & type BEFORE uploading (prevents silent backend rejection)
+      // Validate file size & type BEFORE uploading
       const check = validateFileBeforeUpload('receipt', {
         size: asset.fileSize ?? 0,
         mimeType: asset.mimeType ?? (asset.type === 'image' ? 'image/jpeg' : undefined),
@@ -165,43 +154,26 @@ export default function SubscriptionsScreen() {
       setUploadingReceipt(subscriptionId);
       setUploadProgress(0);
       setUploadError(null);
-      setUploadFileName(asset.fileName || 'receipt.jpg');
 
-      // Use progress-tracked upload
-      const { uploadFile } = require('../../../services/uploadManager');
-      const upload = uploadFile(
-        asset.uri,
-        asset.fileName || 'receipt.jpg',
-        asset.fileSize || 0,
-        asset.type === 'image' ? 'image/jpeg' : (asset.mimeType || 'image/jpeg'),
-        'receipt',
-        {
-          onProgress: (p: any) => setUploadProgress(p.percent),
-        },
-      );
-      cancelUploadRef.current = upload.cancel;
+      // Direct multipart upload — simple & reliable on real devices
+      await apiService.uploadPaymentReceipt(subscriptionId, asset.uri);
 
-      const uploadResult = await upload.promise;
       setUploadProgress(100);
-
-      // Link the uploaded file to the subscription record
-      await apiService.linkReceiptToSubscription(subscriptionId, uploadResult.file.url, uploadResult.file.id);
-
       Alert.alert("نجاح", "تم رفع الإيصال بنجاح! سيتم مراجعته قريباً.");
       fetchData();
     } catch (err: any) {
       if (err.message?.includes('إلغاء')) {
-        // User cancelled — do nothing
+        // User cancelled
       } else {
         setUploadError(err.message || 'فشل رفع الإيصال. يرجى المحاولة مرة أخرى');
+        Alert.alert('خطأ', err.message || 'فشل رفع الإيصال. يرجى المحاولة مرة أخرى');
       }
     } finally {
-      if (!uploadError) {
-        setTimeout(() => {
-          setUploadingReceipt(null);
-          setUploadProgress(0);
-        }, 1500);
-      }
+      setTimeout(() => {
+        setUploadingReceipt(null);
+        setUploadProgress(0);
+        setUploadError(null);
+      }, 1500);
     }
   };
 
@@ -274,7 +246,7 @@ export default function SubscriptionsScreen() {
         {/* Active Subscriptions Section */}
         {activeSubscriptions.length > 0 && (
           <>
-            <Text style={styles.sectionTitle}>اشتراكاتك الحالية</Text>
+            <Text style={styles.sectionTitle}>رسوم العضوية الحالية</Text>
             {activeSubscriptions.map((subscription) => {
               const paymentStatus = getPaymentStatusLabel(subscription.paymentStatus);
               const isDonation = subscription.isDonation;
@@ -301,7 +273,7 @@ export default function SubscriptionsScreen() {
                               { color: isDonation ? "#EF6C00" : "#1565C0" },
                             ]}
                           >
-                            {isDonation ? "تبرع" : "اشتراك"}
+                            {isDonation ? "تبرع" : "رسوم"}
                           </Text>
                         </View>
                       )}
@@ -314,11 +286,11 @@ export default function SubscriptionsScreen() {
                   <View style={styles.subscriptionInfo}>
                     <View style={styles.infoRow}>
                       <Ionicons name="pricetag-outline" size={16} color="#666" />
-                      <Text style={styles.infoText}>السعر: {formatPrice(subscription.price, subscription.currency)}</Text>
+                      <Text style={styles.infoText}>المبلغ: {formatPrice(subscription.price, subscription.currency)}</Text>
                     </View>
                     <View style={styles.infoRow}>
                       <Ionicons name="repeat-outline" size={16} color="#666" />
-                      <Text style={styles.infoText}>الفترة: {getPeriodLabel(subscription.period)}</Text>
+                      <Text style={styles.infoText}>الدورة: {getPeriodLabel(subscription.period)}</Text>
                     </View>
                     <View style={styles.infoRow}>
                       <Ionicons name="calendar-outline" size={16} color="#666" />
@@ -370,7 +342,7 @@ export default function SubscriptionsScreen() {
               style={styles.viewHistoryButton} 
               onPress={() => router.push("/subscriptions/previous-subscriptions")}
             >
-              <Text style={styles.viewHistoryText}>عرض الاشتراكات السابقة</Text>
+              <Text style={styles.viewHistoryText}>عرض السجل السابق</Text>
               <Ionicons name="chevron-forward" size={20} color="#2E7D32" />
             </TouchableOpacity>
           </>
@@ -378,7 +350,7 @@ export default function SubscriptionsScreen() {
 
         {/* Available Plans Section */}
         <Text style={styles.sectionTitle}>
-          {activeSubscriptions.length > 0 ? 'الخطط المتاحة' : 'الخطط المتاحة للاشتراك / التبرع'}
+          {activeSubscriptions.length > 0 ? 'رسوم أخرى متاحة' : 'رسوم العضوية والتبرعات'}
         </Text>
         
         {subscriptionPlans.length === 0 && donationPlans.length === 0 ? (
@@ -386,22 +358,22 @@ export default function SubscriptionsScreen() {
             <Ionicons name="card-outline" size={60} color="#CCCCCC" />
             <Text style={styles.emptyText}>
               {activeSubscriptions.length > 0 
-                ? 'لا توجد خطط إضافية متاحة' 
-                : 'لا توجد خطط اشتراك أو تبرع متاحة حالياً'}
+                ? 'لا توجد رسوم إضافية حالياً' 
+                : 'لا توجد رسوم عضوية مطلوبة حالياً'}
             </Text>
           </View>
         ) : (
           <>
             {subscriptionPlans.length > 0 && (
               <>
-                <Text style={styles.subSectionTitle}>خطط الاشتراك</Text>
+                <Text style={styles.subSectionTitle}>رسوم العضوية</Text>
                 {subscriptionPlans.map((plan) => (
                   <View key={plan.id} style={styles.planCard}>
                     <View style={styles.planHeader}>
                       <View style={styles.planTitleRow}>
                         <Text style={styles.planTitle}>{plan.title}</Text>
                         <View style={[styles.typeBadge, { backgroundColor: "#E3F2FD" }]}>
-                          <Text style={[styles.typeBadgeText, { color: "#1565C0" }]}>اشتراك</Text>
+                          <Text style={[styles.typeBadgeText, { color: "#1565C0" }]}>رسوم</Text>
                         </View>
                       </View>
                       <Text style={styles.planPrice}>{formatPrice(plan.price, plan.currency)}</Text>
@@ -425,7 +397,7 @@ export default function SubscriptionsScreen() {
                         <ActivityIndicator size="small" color="#FFFFFF" />
                       ) : (
                         <Text style={styles.subscribeButtonText}>
-                          {isSubscribedToPlan(plan.id) ? "مشترك بالفعل" : "اشترك الآن"}
+                          {isSubscribedToPlan(plan.id) ? "تم التسجيل" : "سداد الرسوم"}
                         </Text>
                       )}
                     </TouchableOpacity>
@@ -436,7 +408,7 @@ export default function SubscriptionsScreen() {
 
             {donationPlans.length > 0 && (
               <>
-                <Text style={styles.subSectionTitle}>خطط التبرع</Text>
+                <Text style={styles.subSectionTitle}>التبرعات</Text>
                 {donationPlans.map((plan) => (
                   <View key={plan.id} style={styles.planCard}>
                     <View style={styles.planHeader}>
@@ -482,9 +454,9 @@ export default function SubscriptionsScreen() {
         {activeSubscriptions.length === 0 && availablePlans.length === 0 && (
           <View style={styles.emptyStateContainer}>
             <Ionicons name="document-text-outline" size={80} color="#CCCCCC" />
-            <Text style={styles.emptyStateTitle}>لا توجد اشتراكات</Text>
+            <Text style={styles.emptyStateTitle}>لا توجد رسوم مستحقة</Text>
             <Text style={styles.emptyStateText}>
-              لم يتم تخصيص أي اشتراكات لك حتى الآن. سيتم إعلامك عند توفر خطط جديدة.
+              لا توجد رسوم عضوية مطلوبة حالياً. سيتم إعلامك عند تحديد رسوم جديدة.
             </Text>
           </View>
         )}

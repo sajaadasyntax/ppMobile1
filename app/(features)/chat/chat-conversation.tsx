@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Animated,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
@@ -24,18 +25,38 @@ import VoicePlayer from "../../../components/VoicePlayer";
 interface Message {
   id: string;
   text: string | null;
-  messageType?: 'TEXT' | 'VOICE' | 'IMAGE';
+  messageType?: "TEXT" | "VOICE" | "IMAGE";
   mediaUrl?: string | null;
   duration?: number | null;
   createdAt: string;
   senderId: string;
   sender: {
     id: string;
-    memberDetails?: {
-      fullName: string;
-    };
+    memberDetails?: { fullName: string };
   };
 }
+
+// ── Animated message wrapper ─────────────────────────────────────────
+
+const AnimatedMessage = React.memo(({ children }: { children: React.ReactNode }) => {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(12)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 280, useNativeDriver: true }),
+      Animated.spring(slideAnim, { toValue: 0, friction: 8, tension: 80, useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+  return (
+    <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+      {children}
+    </Animated.View>
+  );
+});
+
+// ── Main screen ──────────────────────────────────────────────────────
 
 export default function ChatConversationScreen() {
   const { roomId, title } = useLocalSearchParams<{ roomId: string; title: string }>();
@@ -53,181 +74,122 @@ export default function ChatConversationScreen() {
   const isLoadingMoreRef = useRef(false);
   const [socketConnected, setSocketConnected] = useState(false);
   const socketUnsubscribeRef = useRef<(() => void) | null>(null);
-  
-  // Voice message states
+
+  // Voice states
   const [showVoiceRecorder, setShowVoiceRecorder] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [sendingVoice, setSendingVoice] = useState(false);
 
-  const fetchMessages = async (cursor?: string, isLoadMore: boolean = false) => {
+  // Send button animation
+  const sendBtnScale = useRef(new Animated.Value(1)).current;
+  const inputFocused = useRef(false);
+
+  // ── Data fetching ──────────────────────────────────────────────────
+
+  const fetchMessages = async (cursor?: string, isLoadMore = false) => {
     if (!token || !roomId) {
       if (!token) router.replace("/login");
-      // Reset ref if we're returning early during load more
-      if (isLoadMore) {
-        isLoadingMoreRef.current = false;
-        setLoadingMore(false);
-      }
+      if (isLoadMore) { isLoadingMoreRef.current = false; setLoadingMore(false); }
       return;
     }
-
-    // Skip polling if we're currently loading more messages
-    if (!isLoadMore && isLoadingMoreRef.current) {
-      return;
-    }
+    if (!isLoadMore && isLoadingMoreRef.current) return;
 
     try {
-      if (!isLoadMore) {
-        setError(null);
-      }
-      // Note: isLoadingMoreRef is set by loadMoreMessages before calling fetchMessages
-      // No need to set it here as it's already set synchronously
-      
+      if (!isLoadMore) setError(null);
       const data = await apiService.getChatMessages(roomId, cursor);
-      
+
       if (isLoadMore) {
-        // Append older messages to the end (which appears at top in inverted list)
         setMessages((prev) => [...prev, ...(data.messages || [])]);
       } else {
-        // For initial load or polling: merge new messages intelligently
         setMessages((prev) => {
-          if (prev.length === 0) {
-            // Initial load - messages should be in reverse order for inverted list
-            // (newest first, which will appear at the bottom)
-            return (data.messages || []).reverse();
-          }
-          
-          // Polling: only add messages that don't already exist
-          const existingIds = new Set(prev.map(m => m.id));
-          const newMessages = (data.messages || []).filter((m: Message) => !existingIds.has(m.id));
-          
-          if (newMessages.length > 0) {
-            // Prepend new messages to beginning (appears at bottom in inverted list)
-            return [...newMessages.reverse(), ...prev];
-          }
-          
-          return prev;
+          if (prev.length === 0) return (data.messages || []).reverse();
+          const existingIds = new Set(prev.map((m) => m.id));
+          const fresh = (data.messages || []).filter((m: Message) => !existingIds.has(m.id));
+          return fresh.length > 0 ? [...fresh.reverse(), ...prev] : prev;
         });
       }
       setHasMore(data.hasMore);
     } catch (err: any) {
-      console.error("Error fetching messages:", err);
-      if (!isLoadMore) {
-        setError(err.message || "فشل تحميل الرسائل");
-      }
+      if (!isLoadMore) setError(err.message || "فشل تحميل الرسائل");
     } finally {
-      // Only reset loading state for initial loads, not pagination
-      if (!isLoadMore) {
-        setLoading(false);
-      }
+      if (!isLoadMore) setLoading(false);
       setLoadingMore(false);
       isLoadingMoreRef.current = false;
     }
   };
 
-  // Handle new real-time message from Socket.IO
+  // ── Real-time ──────────────────────────────────────────────────────
+
   const handleNewMessage = useCallback((message: Message) => {
     setMessages((prev) => {
-      // Check if message already exists (might have been sent by this user)
-      if (prev.some(m => m.id === message.id)) {
-        return prev;
-      }
-      // Prepend to beginning (inverted list shows it at bottom)
+      if (prev.some((m) => m.id === message.id)) return prev;
       return [message, ...prev];
     });
   }, []);
 
-  // Initialize Socket.IO connection and message handling
   useEffect(() => {
     let isMounted = true;
     let pollInterval: ReturnType<typeof setInterval> | null = null;
 
     const initializeChat = async () => {
-      // First, fetch existing messages
       await fetchMessages();
-
       if (!roomId || !isMounted) return;
 
-      // Try to connect via Socket.IO for real-time updates
       const connected = await socketService.connect();
-      
       if (connected && isMounted) {
         setSocketConnected(true);
         socketService.joinRoom(roomId);
-        
-        // Subscribe to new messages
         socketUnsubscribeRef.current = socketService.onMessage(roomId, handleNewMessage);
 
-        // Listen for room_removed: admin removed this user from the room
         const unsubRoomRemoved = socketService.onRoomRemoved((data) => {
           if (data.roomId === roomId && isMounted) {
-            Alert.alert('تمت إزالتك', data.reason || 'تمت إزالتك من غرفة المحادثة', [
-              { text: 'حسناً', onPress: () => router.back() },
+            Alert.alert("تمت إزالتك", data.reason || "تمت إزالتك من غرفة المحادثة", [
+              { text: "حسناً", onPress: () => router.back() },
             ]);
           }
         });
-        // Chain cleanup so both unsubs fire
-        const originalUnsub = socketUnsubscribeRef.current;
-        socketUnsubscribeRef.current = () => { originalUnsub?.(); unsubRoomRemoved(); };
-        
-        console.log('Using Socket.IO for real-time chat');
+        const orig = socketUnsubscribeRef.current;
+        socketUnsubscribeRef.current = () => { orig?.(); unsubRoomRemoved(); };
       } else if (isMounted) {
-        // Fallback to polling if Socket.IO fails
-        console.log('Socket.IO unavailable, falling back to polling');
         setSocketConnected(false);
-        
         pollInterval = setInterval(() => {
-          if (!isLoadingMoreRef.current) {
-            fetchMessages();
-          }
+          if (!isLoadingMoreRef.current) fetchMessages();
         }, 5000);
       }
     };
 
     initializeChat();
-
     return () => {
       isMounted = false;
-      
-      // Clean up Socket.IO
-      if (socketUnsubscribeRef.current) {
-        socketUnsubscribeRef.current();
-        socketUnsubscribeRef.current = null;
-      }
-      if (roomId) {
-        socketService.leaveRoom(roomId);
-        socketService.removeRoomHandlers(roomId);
-      }
-      
-      // Clean up polling interval
-      if (pollInterval) {
-        clearInterval(pollInterval);
-      }
+      socketUnsubscribeRef.current?.();
+      socketUnsubscribeRef.current = null;
+      if (roomId) { socketService.leaveRoom(roomId); socketService.removeRoomHandlers(roomId); }
+      if (pollInterval) clearInterval(pollInterval);
     };
   }, [token, roomId, handleNewMessage]);
 
+  // ── Send text ──────────────────────────────────────────────────────
+
   const handleSendMessage = async () => {
     if (!newMessage.trim() || sending) return;
-
     const messageText = newMessage.trim();
     setNewMessage("");
     setSending(true);
 
+    // Animate send button
+    Animated.sequence([
+      Animated.timing(sendBtnScale, { toValue: 0.8, duration: 60, useNativeDriver: true }),
+      Animated.spring(sendBtnScale, { toValue: 1, friction: 4, useNativeDriver: true }),
+    ]).start();
+
     try {
       if (socketConnected && socketService.isConnected()) {
-        // Use ONLY the socket to send — the backend socket handler persists the
-        // message and broadcasts it to the room.  The broadcast comes back via
-        // handleNewMessage so we do NOT need to touch state here.
         socketService.sendMessage(roomId!, messageText);
       } else {
-        // Fallback to HTTP API when socket is unavailable
-        const sentMessage = await apiService.sendChatMessage(roomId!, messageText);
-        setMessages((prev) => {
-          if (prev.some(m => m.id === sentMessage.id)) return prev;
-          return [sentMessage, ...prev];
-        });
+        const sent = await apiService.sendChatMessage(roomId!, messageText);
+        setMessages((prev) => (prev.some((m) => m.id === sent.id) ? prev : [sent, ...prev]));
       }
     } catch (err: any) {
-      console.error("Error sending message:", err);
       setNewMessage(messageText);
       setError(err.message || "فشل إرسال الرسالة");
       setTimeout(() => setError(null), 3000);
@@ -236,54 +198,28 @@ export default function ChatConversationScreen() {
     }
   };
 
-  // Handle voice message recording complete
-  const handleVoiceRecordingComplete = async (uri: string, duration: number) => {
-    if (!roomId || sendingVoice) return;
+  // ── Send voice ─────────────────────────────────────────────────────
 
+  const handleVoiceRecordingComplete = async (uri: string, dur: number) => {
+    if (!roomId || sendingVoice) return;
     setSendingVoice(true);
     setShowVoiceRecorder(false);
 
     try {
-      // Validate voice file before uploading
-      const ext = uri.split('.').pop()?.toLowerCase() || 'm4a';
-      const mimeMap: Record<string, string> = { m4a: 'audio/mp4', mp3: 'audio/mpeg', wav: 'audio/wav', webm: 'audio/webm', ogg: 'audio/ogg', aac: 'audio/aac' };
+      const ext = uri.split(".").pop()?.toLowerCase() || "m4a";
+      const mimeMap: Record<string, string> = { m4a: "audio/mp4", mp3: "audio/mpeg", wav: "audio/wav", webm: "audio/webm", ogg: "audio/ogg", aac: "audio/aac" };
 
-      // Get file size via fetch (avoids direct expo-file-system dependency)
       let fileSize = 0;
-      try {
-        const resp = await fetch(uri);
-        const blob = await resp.blob();
-        fileSize = blob.size;
-      } catch {
-        // If we can't determine size, let the backend validate
-      }
+      try { const r = await fetch(uri); const b = await r.blob(); fileSize = b.size; } catch {}
 
       if (fileSize > 0) {
-        const check = validateFileBeforeUpload('voice', {
-          size: fileSize,
-          mimeType: mimeMap[ext] || 'audio/mp4',
-          name: `voice.${ext}`,
-        });
-        if (!check.valid) {
-          Alert.alert('ملف غير مقبول', check.error || 'الملف كبير جداً');
-          setSendingVoice(false);
-          return;
-        }
+        const check = validateFileBeforeUpload("voice", { size: fileSize, mimeType: mimeMap[ext] || "audio/mp4", name: `voice.${ext}` });
+        if (!check.valid) { Alert.alert("ملف غير مقبول", check.error || "الملف كبير جداً"); setSendingVoice(false); return; }
       }
 
-      console.log('Uploading voice message:', uri, 'duration:', duration);
-      
-      // Upload the voice message
-      const sentMessage = await apiService.uploadVoiceMessage(roomId, uri, duration);
-      
-      // The message will come back via socket if connected, otherwise add it manually
-      if (!socketConnected) {
-        setMessages((prev) => [sentMessage, ...prev]);
-      }
-      
-      console.log('Voice message sent successfully');
+      const sent = await apiService.uploadVoiceMessage(roomId, uri, dur);
+      if (!socketConnected) setMessages((prev) => [sent, ...prev]);
     } catch (err: any) {
-      console.error("Error sending voice message:", err);
       setError(err.message || "فشل إرسال الرسالة الصوتية");
       setTimeout(() => setError(null), 3000);
     } finally {
@@ -291,123 +227,128 @@ export default function ChatConversationScreen() {
     }
   };
 
-  const handleVoiceRecorderCancel = () => {
-    setShowVoiceRecorder(false);
-    setIsRecording(false);
-  };
+  // ── Load more ──────────────────────────────────────────────────────
 
   const loadMoreMessages = async () => {
-    // Use ref for synchronous check to prevent race conditions with rapid calls
     if (!hasMore || isLoadingMoreRef.current || messages.length === 0) return;
-    
-    isLoadingMoreRef.current = true; // Set ref synchronously first to prevent duplicate calls
-    setLoadingMore(true); // Update state for UI
-    
+    isLoadingMoreRef.current = true;
+    setLoadingMore(true);
     try {
-      // In inverted list, oldest messages are at the end of the array
-      const oldestMessage = messages[messages.length - 1];
-      // Note: Backend currently uses timestamp as cursor (not ideal - message IDs would be better)
-      // Using timestamp can cause issues if multiple messages share the same timestamp
-      // The cursor should ideally be a message ID for more reliable pagination
-      await fetchMessages(oldestMessage.createdAt, true);
-    } catch (err) {
-      // Error handling is done in fetchMessages, but ensure ref is reset
-      console.error("Error in loadMoreMessages:", err);
+      const oldest = messages[messages.length - 1];
+      await fetchMessages(oldest.createdAt, true);
     } finally {
-      // Ensure ref is always reset, even if fetchMessages returns early
-      // fetchMessages also resets it in its finally block, but this provides safety
-      if (isLoadingMoreRef.current) {
-        isLoadingMoreRef.current = false;
-        setLoadingMore(false);
-      }
+      if (isLoadingMoreRef.current) { isLoadingMoreRef.current = false; setLoadingMore(false); }
     }
   };
 
-  const formatMessageTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" });
-  };
+  // ── Formatters ─────────────────────────────────────────────────────
 
-  const formatMessageDate = (dateString: string) => {
-    const date = new Date(dateString);
+  const formatMessageTime = (d: string) => new Date(d).toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" });
+
+  const formatMessageDate = (d: string) => {
+    const date = new Date(d);
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
-
-    if (date.toDateString() === today.toDateString()) {
-      return "اليوم";
-    } else if (date.toDateString() === yesterday.toDateString()) {
-      return "أمس";
-    } else {
-      return date.toLocaleDateString("ar-SA");
-    }
+    if (date.toDateString() === today.toDateString()) return "اليوم";
+    if (date.toDateString() === yesterday.toDateString()) return "أمس";
+    return date.toLocaleDateString("ar-SA");
   };
 
-  const isMyMessage = (message: Message) => {
-    return message.sender?.id === user?.id || message.senderId === user?.id;
-  };
+  const isMyMessage = (m: Message) => m.sender?.id === user?.id || m.senderId === user?.id;
+
+  // ── Render message ─────────────────────────────────────────────────
 
   const renderMessage = ({ item, index }: { item: Message; index: number }) => {
     const isMine = isMyMessage(item);
-    const senderName = isMine 
-      ? "أنت"
-      : (item.sender?.memberDetails?.fullName || "عضو");
-    const isVoiceMessage = item.messageType === 'VOICE' && item.mediaUrl;
-    
-    // In inverted list, we check the next item (index + 1) for date separator
-    // because the list is rendered in reverse order
-    const nextMessage = messages[index + 1];
-    const showDateSeparator = !nextMessage || 
-      formatMessageDate(item.createdAt) !== formatMessageDate(nextMessage.createdAt);
+    const senderName = isMine ? "أنت" : item.sender?.memberDetails?.fullName || "عضو";
+    const isVoice = item.messageType === "VOICE" && item.mediaUrl;
+    const next = messages[index + 1];
+    const showDate = !next || formatMessageDate(item.createdAt) !== formatMessageDate(next.createdAt);
+
+    // Check if previous message (index - 1 in array = below in inverted list) is from the same sender
+    const prev = index > 0 ? messages[index - 1] : null;
+    const isFirstInGroup = !prev || (prev.senderId !== item.senderId);
 
     return (
-      <View>
+      <AnimatedMessage>
         <View style={[styles.messageRow, isMine ? styles.myMessageRow : styles.otherMessageRow]}>
-          <View style={[
-            styles.messageBubble, 
-            isMine ? styles.myMessage : styles.otherMessage,
-            isVoiceMessage && styles.voiceMessageBubble
-          ]}>
-            {!isMine && (
+          {/* Avatar for other users (first in group only) */}
+          {!isMine && (
+            <View style={styles.avatarColumn}>
+              {isFirstInGroup ? (
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>
+                    {(senderName || "").charAt(0)}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.avatarSpacer} />
+              )}
+            </View>
+          )}
+
+          <View style={{ maxWidth: "78%" }}>
+            {/* Sender name (first in group only, other people's messages) */}
+            {!isMine && isFirstInGroup && (
               <Text style={styles.senderName}>{senderName}</Text>
             )}
-            
-            {isVoiceMessage ? (
-              <VoicePlayer 
-                mediaUrl={item.mediaUrl!}
-                duration={item.duration || null}
-                isMine={isMine}
-              />
-            ) : (
-              <Text style={[styles.messageText, isMine ? styles.myMessageText : styles.otherMessageText]}>
-                {item.text}
-              </Text>
-            )}
-            
-            <Text style={[styles.messageTime, isMine ? styles.myMessageTime : styles.otherMessageTime]}>
-              {formatMessageTime(item.createdAt)}
-            </Text>
+
+            <View
+              style={[
+                styles.messageBubble,
+                isMine ? styles.myMessage : styles.otherMessage,
+                isVoice && styles.voiceBubble,
+                // Rounded corners based on grouping
+                isMine && isFirstInGroup && { borderBottomRightRadius: 6 },
+                isMine && !isFirstInGroup && { borderTopRightRadius: 6, borderBottomRightRadius: 6 },
+                !isMine && isFirstInGroup && { borderBottomLeftRadius: 6 },
+                !isMine && !isFirstInGroup && { borderTopLeftRadius: 6, borderBottomLeftRadius: 6 },
+              ]}
+            >
+              {isVoice ? (
+                <VoicePlayer mediaUrl={item.mediaUrl!} duration={item.duration || null} isMine={isMine} />
+              ) : (
+                <Text style={[styles.messageText, isMine ? styles.myMessageText : styles.otherMessageText]}>
+                  {item.text}
+                </Text>
+              )}
+
+              {/* Timestamp + delivery indicator */}
+              <View style={styles.metaRow}>
+                <Text style={[styles.messageTime, isMine ? styles.myMessageTime : styles.otherMessageTime]}>
+                  {formatMessageTime(item.createdAt)}
+                </Text>
+                {isMine && (
+                  <Ionicons
+                    name="checkmark-done"
+                    size={14}
+                    color="rgba(255,255,255,0.55)"
+                    style={{ marginLeft: 3 }}
+                  />
+                )}
+              </View>
+            </View>
           </View>
         </View>
-        {showDateSeparator && (
+
+        {showDate && (
           <View style={styles.dateSeparator}>
-            <Text style={styles.dateSeparatorText}>
-              {formatMessageDate(item.createdAt)}
-            </Text>
+            <View style={styles.dateLine} />
+            <Text style={styles.dateSeparatorText}>{formatMessageDate(item.createdAt)}</Text>
+            <View style={styles.dateLine} />
           </View>
         )}
-      </View>
+      </AnimatedMessage>
     );
   };
+
+  // ── Loading state ──────────────────────────────────────────────────
 
   if (loading) {
     return (
       <View style={styles.container}>
-        <Stack.Screen
-          options={{
-            headerTitle: title || "المحادثة",
-          }}
-        />
+        <Stack.Screen options={{ headerTitle: title || "المحادثة" }} />
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#2E7D32" />
           <Text style={styles.loadingText}>جاري تحميل الرسائل...</Text>
@@ -416,28 +357,40 @@ export default function ChatConversationScreen() {
     );
   }
 
+  // ── Main render ────────────────────────────────────────────────────
+
+  const hasText = newMessage.trim().length > 0;
+
   return (
     <View style={styles.container}>
       <Stack.Screen
         options={{
           headerTitle: title || "المحادثة",
+          headerTitleStyle: { fontFamily: "Tajawal-Bold", fontSize: 17 },
+          headerShadowVisible: false,
+          headerStyle: { backgroundColor: "#FAFAFA" },
         }}
       />
 
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={Platform.OS === "ios" ? (60 + insets.top) : 0}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 60 + insets.top : 0}
       >
+        {/* Error banner with animation */}
         {error && (
           <View style={styles.errorBanner}>
+            <Ionicons name="alert-circle" size={16} color="#D32F2F" />
             <Text style={styles.errorBannerText}>{error}</Text>
           </View>
         )}
 
+        {/* Messages list */}
         {messages.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Ionicons name="chatbubble-ellipses-outline" size={60} color="#CCCCCC" />
+            <View style={styles.emptyIconWrap}>
+              <Ionicons name="chatbubbles-outline" size={48} color="#B0BEC5" />
+            </View>
             <Text style={styles.emptyText}>لا توجد رسائل بعد</Text>
             <Text style={styles.emptySubtext}>ابدأ المحادثة بإرسال رسالة</Text>
           </View>
@@ -449,12 +402,8 @@ export default function ChatConversationScreen() {
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.messagesContainer}
             inverted
-            onEndReached={() => {
-              // In inverted list, "end" is actually the top (older messages)
-              if (hasMore && !loadingMore) {
-                loadMoreMessages();
-              }
-            }}
+            showsVerticalScrollIndicator={false}
+            onEndReached={() => { if (hasMore && !loadingMore) loadMoreMessages(); }}
             onEndReachedThreshold={0.3}
             ListFooterComponent={
               loadingMore ? (
@@ -468,10 +417,10 @@ export default function ChatConversationScreen() {
 
         {/* Voice Recorder */}
         {showVoiceRecorder && (
-          <View style={{ paddingBottom: insets.bottom }}>
+          <View style={[styles.bottomBar, { paddingBottom: Math.max(12, insets.bottom) }]}>
             <VoiceRecorder
               onRecordingComplete={handleVoiceRecordingComplete}
-              onCancel={handleVoiceRecorderCancel}
+              onCancel={() => { setShowVoiceRecorder(false); setIsRecording(false); }}
               isRecording={isRecording}
               setIsRecording={setIsRecording}
             />
@@ -480,7 +429,7 @@ export default function ChatConversationScreen() {
 
         {/* Sending Voice Indicator */}
         {sendingVoice && (
-          <View style={[styles.sendingVoiceContainer, { paddingBottom: Math.max(16, insets.bottom) }]}>
+          <View style={[styles.bottomBar, styles.sendingVoiceBar, { paddingBottom: Math.max(14, insets.bottom) }]}>
             <ActivityIndicator size="small" color="#2E7D32" />
             <Text style={styles.sendingVoiceText}>جاري إرسال الرسالة الصوتية...</Text>
           </View>
@@ -488,35 +437,52 @@ export default function ChatConversationScreen() {
 
         {/* Input Area */}
         {!showVoiceRecorder && !sendingVoice && (
-          <View style={[styles.inputContainer, { paddingBottom: Math.max(12, insets.bottom) }]}>
-            {/* Voice message button */}
-            <TouchableOpacity
-              style={styles.voiceButton}
-              onPress={() => setShowVoiceRecorder(true)}
-            >
-              <Ionicons name="mic-outline" size={24} color="#666666" />
-            </TouchableOpacity>
-
-            <TextInput
-              style={styles.textInput}
-              value={newMessage}
-              onChangeText={setNewMessage}
-              placeholder="اكتب رسالتك..."
-              placeholderTextColor="#999999"
-              multiline
-              maxLength={1000}
-            />
-            <TouchableOpacity
-              style={[styles.sendButton, (!newMessage.trim() || sending) && styles.sendButtonDisabled]}
-              onPress={handleSendMessage}
-              disabled={!newMessage.trim() || sending}
-            >
-              {sending ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <Ionicons name="send" size={22} color="#FFFFFF" />
+          <View style={[styles.inputWrapper, { paddingBottom: Math.max(10, insets.bottom) }]}>
+            <View style={styles.inputRow}>
+              {/* Mic button — shown only when no text typed */}
+              {!hasText && (
+                <TouchableOpacity
+                  style={styles.iconBtn}
+                  onPress={() => setShowVoiceRecorder(true)}
+                  activeOpacity={0.6}
+                >
+                  <View style={styles.micCircle}>
+                    <Ionicons name="mic" size={20} color="#2E7D32" />
+                  </View>
+                </TouchableOpacity>
               )}
-            </TouchableOpacity>
+
+              {/* Text input */}
+              <View style={styles.inputBubble}>
+                <TextInput
+                  style={styles.textInput}
+                  value={newMessage}
+                  onChangeText={setNewMessage}
+                  placeholder="اكتب رسالتك..."
+                  placeholderTextColor="#AAA"
+                  multiline
+                  maxLength={1000}
+                  onFocus={() => { inputFocused.current = true; }}
+                  onBlur={() => { inputFocused.current = false; }}
+                />
+              </View>
+
+              {/* Send button */}
+              <Animated.View style={{ transform: [{ scale: sendBtnScale }] }}>
+                <TouchableOpacity
+                  style={[styles.sendButton, !hasText && styles.sendButtonDisabled]}
+                  onPress={handleSendMessage}
+                  disabled={!hasText || sending}
+                  activeOpacity={0.7}
+                >
+                  {sending ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Ionicons name="send" size={20} color="#FFF" style={{ marginLeft: -2 }} />
+                  )}
+                </TouchableOpacity>
+              </Animated.View>
+            </View>
           </View>
         )}
       </KeyboardAvoidingView>
@@ -524,184 +490,127 @@ export default function ChatConversationScreen() {
   );
 }
 
+// ── Styles ────────────────────────────────────────────────────────────
+
+const BRAND = "#2E7D32";
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F5F5F5",
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    fontFamily: "Tajawal-Regular",
-    color: "#666666",
-  },
+  container: { flex: 1, backgroundColor: "#ECE5DD" },
+  keyboardView: { flex: 1 },
+
+  // Loading
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+  loadingText: { marginTop: 12, fontSize: 15, fontFamily: "Tajawal-Regular", color: "#666" },
+
+  // Error
   errorBanner: {
-    backgroundColor: "#FFEBEE",
-    padding: 10,
-    alignItems: "center",
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 6, backgroundColor: "#FFEBEE", paddingVertical: 8, paddingHorizontal: 16,
   },
-  errorBannerText: {
-    color: "#D32F2F",
-    fontFamily: "Tajawal-Regular",
-    fontSize: 14,
+  errorBannerText: { color: "#D32F2F", fontFamily: "Tajawal-Medium", fontSize: 13 },
+
+  // Empty
+  emptyContainer: { flex: 1, justifyContent: "center", alignItems: "center", padding: 40 },
+  emptyIconWrap: {
+    width: 80, height: 80, borderRadius: 40,
+    backgroundColor: "#E0E0E0", justifyContent: "center", alignItems: "center", marginBottom: 16,
   },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 40,
-  },
-  emptyText: {
-    fontSize: 18,
-    fontFamily: "Tajawal-Bold",
-    color: "#666666",
-    marginTop: 16,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    fontFamily: "Tajawal-Regular",
-    color: "#999999",
-    marginTop: 8,
-  },
-  messagesContainer: {
-    padding: 16,
-    paddingBottom: 8,
-  },
-  loadingMore: {
-    padding: 10,
-    alignItems: "center",
-  },
+  emptyText: { fontSize: 17, fontFamily: "Tajawal-Bold", color: "#666", marginTop: 4 },
+  emptySubtext: { fontSize: 13, fontFamily: "Tajawal-Regular", color: "#999", marginTop: 6 },
+
+  // Messages
+  messagesContainer: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 4 },
+  loadingMore: { padding: 12, alignItems: "center" },
+
+  // Date separator
   dateSeparator: {
-    alignItems: "center",
-    marginVertical: 16,
+    flexDirection: "row", alignItems: "center", marginVertical: 18, paddingHorizontal: 8,
   },
+  dateLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: "#C5C5C5" },
   dateSeparatorText: {
-    backgroundColor: "rgba(0,0,0,0.1)",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 10,
-    fontSize: 12,
-    fontFamily: "Tajawal-Regular",
-    color: "#666666",
+    backgroundColor: "#D6CEBF", paddingHorizontal: 14, paddingVertical: 4, borderRadius: 12,
+    fontSize: 11, fontFamily: "Tajawal-Medium", color: "#555", marginHorizontal: 10,
+    overflow: "hidden",
   },
-  messageRow: {
-    marginBottom: 8,
-    flexDirection: "row",
+
+  // Message row
+  messageRow: { marginBottom: 3, flexDirection: "row", alignItems: "flex-end" },
+  myMessageRow: { justifyContent: "flex-end" },
+  otherMessageRow: { justifyContent: "flex-start" },
+
+  // Avatar
+  avatarColumn: { width: 30, marginRight: 6, alignItems: "center", justifyContent: "flex-end" },
+  avatar: {
+    width: 28, height: 28, borderRadius: 14, backgroundColor: "#80CBC4",
+    justifyContent: "center", alignItems: "center",
   },
-  myMessageRow: {
-    justifyContent: "flex-end",
-  },
-  otherMessageRow: {
-    justifyContent: "flex-start",
-  },
-  messageBubble: {
-    maxWidth: "80%",
-    padding: 12,
-    borderRadius: 16,
-  },
-  voiceMessageBubble: {
-    padding: 4,
-    backgroundColor: 'transparent',
-  },
-  myMessage: {
-    backgroundColor: "#2E7D32",
-    borderBottomRightRadius: 4,
-  },
-  otherMessage: {
-    backgroundColor: "#FFFFFF",
-    borderBottomLeftRadius: 4,
-    borderWidth: 1,
-    borderColor: "#E0E0E0",
-  },
+  avatarText: { fontSize: 13, fontFamily: "Tajawal-Bold", color: "#FFF" },
+  avatarSpacer: { width: 28 },
+
+  // Sender name
   senderName: {
-    fontSize: 12,
-    fontFamily: "Tajawal-Bold",
-    color: "#2E7D32",
-    marginBottom: 4,
+    fontSize: 12, fontFamily: "Tajawal-Bold", color: "#1B5E20", marginBottom: 2, marginLeft: 4,
   },
-  messageText: {
-    fontSize: 15,
-    fontFamily: "Tajawal-Regular",
-    lineHeight: 22,
+
+  // Bubble
+  messageBubble: {
+    paddingHorizontal: 14, paddingVertical: 9, borderRadius: 18,
+    elevation: 1, shadowColor: "#000", shadowOffset: { width: 0, height: 0.5 },
+    shadowOpacity: 0.08, shadowRadius: 1,
   },
-  myMessageText: {
-    color: "#FFFFFF",
+  voiceBubble: { paddingHorizontal: 0, paddingVertical: 0, backgroundColor: "transparent", elevation: 0, shadowOpacity: 0 },
+  myMessage: { backgroundColor: "#DCF8C6", borderBottomRightRadius: 4 },
+  otherMessage: { backgroundColor: "#FFFFFF", borderBottomLeftRadius: 4 },
+
+  // Text
+  messageText: { fontSize: 15, fontFamily: "Tajawal-Regular", lineHeight: 22 },
+  myMessageText: { color: "#1A1A1A" },
+  otherMessageText: { color: "#1A1A1A" },
+
+  // Meta row (time + checkmarks)
+  metaRow: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", marginTop: 3 },
+  messageTime: { fontSize: 10, fontFamily: "Tajawal-Regular" },
+  myMessageTime: { color: "rgba(0,0,0,0.4)" },
+  otherMessageTime: { color: "#999" },
+
+  // Bottom bar (shared)
+  bottomBar: {
+    backgroundColor: "#FFFFFF", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#D4D4D4",
+    paddingHorizontal: 8, paddingTop: 8,
   },
-  otherMessageText: {
-    color: "#333333",
+  sendingVoiceBar: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14,
   },
-  messageTime: {
-    fontSize: 10,
-    fontFamily: "Tajawal-Regular",
-    marginTop: 4,
-    alignSelf: "flex-end",
+  sendingVoiceText: { fontSize: 14, fontFamily: "Tajawal-Regular", color: "#666" },
+
+  // Input
+  inputWrapper: {
+    backgroundColor: "#FAFAFA", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#D4D4D4",
+    paddingHorizontal: 8, paddingTop: 8,
   },
-  myMessageTime: {
-    color: "rgba(255,255,255,0.7)",
+  inputRow: { flexDirection: "row", alignItems: "flex-end", gap: 6 },
+  iconBtn: { marginBottom: 4 },
+  micCircle: {
+    width: 40, height: 40, borderRadius: 20, backgroundColor: "#E8F5E9",
+    justifyContent: "center", alignItems: "center",
   },
-  otherMessageTime: {
-    color: "#999999",
-  },
-  inputContainer: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    padding: 12,
-    backgroundColor: "#FFFFFF",
-    borderTopWidth: 1,
-    borderTopColor: "#E0E0E0",
-  },
-  voiceButton: {
-    width: 44,
-    height: 44,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 4,
+  inputBubble: {
+    flex: 1, backgroundColor: "#FFF", borderRadius: 22,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: "#DDD",
+    paddingHorizontal: 16, paddingVertical: Platform.OS === "ios" ? 10 : 6,
+    maxHeight: 120, justifyContent: "center",
   },
   textInput: {
-    flex: 1,
-    backgroundColor: "#F5F5F5",
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    paddingTop: 10,
-    fontSize: 15,
-    fontFamily: "Tajawal-Regular",
-    maxHeight: 100,
-    textAlign: "right",
-    marginRight: 8,
+    fontSize: 15, fontFamily: "Tajawal-Regular", color: "#222",
+    textAlign: "right", maxHeight: 100, padding: 0, margin: 0,
   },
   sendButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#2E7D32",
-    justifyContent: "center",
-    alignItems: "center",
+    width: 42, height: 42, borderRadius: 21, backgroundColor: BRAND,
+    justifyContent: "center", alignItems: "center", marginBottom: 2,
+    elevation: 3, shadowColor: BRAND, shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3, shadowRadius: 3,
   },
   sendButtonDisabled: {
-    backgroundColor: "#CCCCCC",
-  },
-  sendingVoiceContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
-  },
-  sendingVoiceText: {
-    marginLeft: 8,
-    fontSize: 14,
-    fontFamily: 'Tajawal-Regular',
-    color: '#666666',
+    backgroundColor: "#B0B0B0", elevation: 0, shadowOpacity: 0,
   },
 });

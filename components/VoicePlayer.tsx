@@ -1,10 +1,12 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   TouchableOpacity,
   Text,
   StyleSheet,
   ActivityIndicator,
+  Animated,
+  Easing,
 } from 'react-native';
 import { Audio } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,36 +19,81 @@ interface VoicePlayerProps {
   isMine: boolean;
 }
 
+const NUM_BARS = 28;
+
+function generateBars(): number[] {
+  return Array.from({ length: NUM_BARS }, () => 0.15 + Math.random() * 0.85);
+}
+
 export default function VoicePlayer({ mediaUrl, duration, isMine }: VoicePlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [playbackProgress, setPlaybackProgress] = useState(0);
   const [currentPosition, setCurrentPosition] = useState(0);
+  const [totalDuration, setTotalDuration] = useState(duration || 0);
   const soundRef = useRef<Audio.Sound | null>(null);
+  const barsRef = useRef<number[]>(generateBars());
 
-  // Cleanup on unmount
+  // Animated values
+  const playScale = useRef(new Animated.Value(1)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
     return () => {
       if (soundRef.current) {
-        soundRef.current.unloadAsync();
+        soundRef.current.stopAsync().catch(() => {});
+        soundRef.current.unloadAsync().catch(() => {});
+        soundRef.current = null;
       }
     };
   }, []);
 
-  const formatDuration = (seconds: number) => {
+  // Animate progress bar smoothly
+  useEffect(() => {
+    Animated.timing(progressAnim, {
+      toValue: playbackProgress,
+      duration: 150,
+      easing: Easing.linear,
+      useNativeDriver: false,
+    }).start();
+  }, [playbackProgress]);
+
+  const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   const getFullUrl = (url: string) => {
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      return url;
-    }
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
     return `${SERVER_BASE_URL}${url}`;
   };
 
+  const onPlaybackStatusUpdate = useCallback((status: any) => {
+    if (!status.isLoaded) return;
+
+    if (status.durationMillis) {
+      setTotalDuration(status.durationMillis / 1000);
+      setPlaybackProgress(status.positionMillis / status.durationMillis);
+      setCurrentPosition(status.positionMillis / 1000);
+    }
+
+    if (status.didJustFinish) {
+      setIsPlaying(false);
+      setPlaybackProgress(0);
+      setCurrentPosition(0);
+      soundRef.current?.stopAsync().catch(() => {});
+      soundRef.current?.setPositionAsync(0).catch(() => {});
+    }
+  }, []);
+
   const togglePlayback = async () => {
+    // Button press animation
+    Animated.sequence([
+      Animated.timing(playScale, { toValue: 0.85, duration: 80, useNativeDriver: true }),
+      Animated.spring(playScale, { toValue: 1, friction: 4, useNativeDriver: true }),
+    ]).start();
+
     try {
       if (isPlaying && soundRef.current) {
         await soundRef.current.pauseAsync();
@@ -55,15 +102,21 @@ export default function VoicePlayer({ mediaUrl, duration, isMine }: VoicePlayerP
       }
 
       if (soundRef.current) {
+        // Resume from paused position
+        const status = await soundRef.current.getStatusAsync();
+        if (status.isLoaded && status.durationMillis && status.positionMillis >= status.durationMillis - 100) {
+          await soundRef.current.setPositionAsync(0);
+          setPlaybackProgress(0);
+          setCurrentPosition(0);
+        }
         await soundRef.current.playAsync();
         setIsPlaying(true);
         return;
       }
 
-      // Load and play the sound
+      // First time: load and play
       setIsLoading(true);
 
-      // Configure audio mode for playback
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
@@ -71,12 +124,9 @@ export default function VoicePlayer({ mediaUrl, duration, isMine }: VoicePlayerP
         shouldDuckAndroid: true,
       });
 
-      const fullUrl = getFullUrl(mediaUrl);
-      console.log('Loading audio from:', fullUrl);
-
       const { sound } = await Audio.Sound.createAsync(
-        { uri: fullUrl },
-        { shouldPlay: true },
+        { uri: getFullUrl(mediaUrl) },
+        { shouldPlay: true, isLooping: false },
         onPlaybackStatusUpdate
       );
 
@@ -90,71 +140,67 @@ export default function VoicePlayer({ mediaUrl, duration, isMine }: VoicePlayerP
     }
   };
 
-  const onPlaybackStatusUpdate = (status: any) => {
-    if (status.isLoaded) {
-      if (status.durationMillis) {
-        const progress = status.positionMillis / status.durationMillis;
-        setPlaybackProgress(progress);
-        setCurrentPosition(status.positionMillis / 1000);
-      }
+  const displayDuration = totalDuration || duration || 0;
+  const displayTime = isPlaying || playbackProgress > 0 ? currentPosition : displayDuration;
 
-      if (status.didJustFinish) {
-        setIsPlaying(false);
-        setPlaybackProgress(0);
-        setCurrentPosition(0);
-        // Reset to beginning
-        soundRef.current?.setPositionAsync(0);
-      }
-    }
-  };
-
-  const displayDuration = duration || 0;
-  const displayPosition = isPlaying ? currentPosition : 0;
+  const barColor = isMine ? '#A5D6A7' : '#D0D0D0';
+  const barActiveColor = isMine ? '#2E7D32' : Colors.primary;
 
   return (
     <View style={[styles.container, isMine ? styles.myMessage : styles.otherMessage]}>
-      <TouchableOpacity
-        style={[styles.playButton, isMine ? styles.myPlayButton : styles.otherPlayButton]}
-        onPress={togglePlayback}
-        disabled={isLoading}
-      >
-        {isLoading ? (
-          <ActivityIndicator size="small" color={isMine ? Colors.primary : '#FFFFFF'} />
-        ) : (
-          <Ionicons
-            name={isPlaying ? 'pause' : 'play'}
-            size={20}
-            color={isMine ? Colors.primary : '#FFFFFF'}
-          />
-        )}
-      </TouchableOpacity>
+      {/* Play / Pause button */}
+      <Animated.View style={{ transform: [{ scale: playScale }] }}>
+        <TouchableOpacity
+          style={[styles.playButton, isMine ? styles.myPlayButton : styles.otherPlayButton]}
+          onPress={togglePlayback}
+          disabled={isLoading}
+          activeOpacity={0.7}
+        >
+          {isLoading ? (
+            <ActivityIndicator size="small" color={'#FFFFFF'} />
+          ) : (
+            <Ionicons
+              name={isPlaying ? 'pause' : 'play'}
+              size={18}
+              color={'#FFFFFF'}
+              style={isPlaying ? undefined : { marginLeft: 2 }}
+            />
+          )}
+        </TouchableOpacity>
+      </Animated.View>
 
-      <View style={styles.progressContainer}>
-        {/* Progress bar background */}
-        <View style={[styles.progressBar, isMine ? styles.myProgressBar : styles.otherProgressBar]}>
-          {/* Progress bar fill */}
-          <View
-            style={[
-              styles.progressFill,
-              isMine ? styles.myProgressFill : styles.otherProgressFill,
-              { width: `${playbackProgress * 100}%` },
-            ]}
-          />
+      {/* Waveform bars */}
+      <View style={styles.waveformContainer}>
+        <View style={styles.barsRow}>
+          {barsRef.current.map((h, i) => {
+            const barProgress = i / NUM_BARS;
+            const isActive = playbackProgress > barProgress;
+            return (
+              <View
+                key={i}
+                style={[
+                  styles.bar,
+                  {
+                    height: 4 + h * 18,
+                    backgroundColor: isActive ? barActiveColor : barColor,
+                    opacity: isActive ? 1 : 0.6,
+                  },
+                ]}
+              />
+            );
+          })}
         </View>
 
-        {/* Duration text */}
-        <Text style={[styles.durationText, isMine ? styles.myDurationText : styles.otherDurationText]}>
-          {isPlaying ? formatDuration(displayPosition) : formatDuration(displayDuration)}
+        {/* Time display */}
+        <Text style={[styles.timeText, isMine ? styles.myTimeText : styles.otherTimeText]}>
+          {formatTime(displayTime)}
         </Text>
       </View>
 
-      {/* Voice wave icon */}
-      <Ionicons
-        name="mic"
-        size={16}
-        color={isMine ? 'rgba(255,255,255,0.7)' : '#666666'}
-        style={styles.micIcon}
-      />
+      {/* Mic icon */}
+      <View style={[styles.micBadge, isMine ? styles.myMicBadge : styles.otherMicBadge]}>
+        <Ionicons name="mic" size={12} color={isMine ? '#2E7D32' : '#999'} />
+      </View>
     </View>
   );
 }
@@ -163,70 +209,75 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 16,
-    minWidth: 180,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    minWidth: 220,
+    maxWidth: '100%',
+    gap: 10,
   },
   myMessage: {
-    backgroundColor: Colors.primary,
+    backgroundColor: '#DCF8C6',
   },
   otherMessage: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: '#E8E8E8',
   },
   playButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 8,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
   },
   myPlayButton: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#2E7D32',
   },
   otherPlayButton: {
     backgroundColor: Colors.primary,
   },
-  progressContainer: {
+  waveformContainer: {
     flex: 1,
-    marginRight: 8,
   },
-  progressBar: {
-    height: 4,
+  barsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 26,
+    gap: 1.5,
+  },
+  bar: {
+    flex: 1,
     borderRadius: 2,
-    marginBottom: 4,
+    minWidth: 2,
   },
-  myProgressBar: {
-    backgroundColor: 'rgba(255,255,255,0.3)',
-  },
-  otherProgressBar: {
-    backgroundColor: '#E0E0E0',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 2,
-  },
-  myProgressFill: {
-    backgroundColor: '#FFFFFF',
-  },
-  otherProgressFill: {
-    backgroundColor: Colors.primary,
-  },
-  durationText: {
+  timeText: {
     fontSize: 11,
-    fontFamily: 'Tajawal-Regular',
+    fontFamily: 'Tajawal-Medium',
+    marginTop: 4,
   },
-  myDurationText: {
-    color: 'rgba(255,255,255,0.8)',
+  myTimeText: {
+    color: 'rgba(0,0,0,0.45)',
   },
-  otherDurationText: {
-    color: '#666666',
+  otherTimeText: {
+    color: '#888',
   },
-  micIcon: {
-    marginLeft: 4,
+  micBadge: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  myMicBadge: {
+    backgroundColor: 'rgba(46,125,50,0.1)',
+  },
+  otherMicBadge: {
+    backgroundColor: '#F0F0F0',
   },
 });
-

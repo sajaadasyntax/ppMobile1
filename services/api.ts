@@ -298,57 +298,29 @@ export const apiService = {
   },
 
   /**
-   * Upload payment receipt using the presigned-URL flow.
-   * Returns { cancel, promise } for progress tracking from uploadManager.
-   * For backward compatibility, also accepts a simple call that returns a promise.
+   * Upload payment receipt via direct multipart upload.
+   * Uses a single POST to /subscriptions/:id/receipt — reliable on real devices.
    */
   uploadPaymentReceipt: async (subscriptionId: string, imageUri: string) => {
     try {
-      // Use the new presigned upload flow
-      const { uploadFile: uploadFileFlow } = require('./uploadManager');
-      const fileName = `receipt-${subscriptionId}.jpg`;
-      const { promise } = uploadFileFlow(imageUri, fileName, 0, 'image/jpeg', 'receipt');
-      const uploadResult = await promise;
+      const formData = new FormData();
+      formData.append('receipt', {
+        uri: imageUri,
+        type: 'image/jpeg',
+        name: 'receipt.jpg',
+      } as any);
 
-      // Link the uploaded file to the subscription
-      const response = await api.post(`/subscriptions/${subscriptionId}/receipt-link`, {
-        filePath: uploadResult.file.url,
-        fileId: uploadResult.file.id,
+      const response = await api.post(`/subscriptions/${subscriptionId}/receipt`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 60000,
       });
       return response.data;
-    } catch (linkError: any) {
-      // Fallback: try the legacy multipart approach
-      try {
-        const formData = new FormData();
-        formData.append('receipt', {
-          uri: imageUri,
-          type: 'image/jpeg',
-          name: 'receipt.jpg',
-        } as any);
-
-        const response = await api.post(`/subscriptions/${subscriptionId}/receipt`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
-        return response.data;
-      } catch (error: any) {
-        console.error('Receipt upload error:', error.response?.data || error.message);
-        throw new Error(error.response?.data?.error || 'فشل رفع الإيصال');
-      }
+    } catch (error: any) {
+      console.error('Receipt upload error:', error.response?.data || error.message);
+      throw new Error(
+        error.response?.data?.message || error.response?.data?.error || 'فشل رفع الإيصال'
+      );
     }
-  },
-
-  /**
-   * Upload payment receipt with real-time progress tracking.
-   * Returns { promise, cancel } — call cancel() to abort.
-   */
-  uploadPaymentReceiptWithProgress: (
-    subscriptionId: string,
-    imageUri: string,
-    onProgress?: (p: { loaded: number; total: number; percent: number }) => void,
-  ) => {
-    const { uploadFile: uploadFileFlow } = require('./uploadManager');
-    const fileName = `receipt-${subscriptionId}.jpg`;
-    return uploadFileFlow(imageUri, fileName, 0, 'image/jpeg', 'receipt', { onProgress });
   },
 
   /**
